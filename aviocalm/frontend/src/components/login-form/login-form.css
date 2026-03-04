@@ -1,0 +1,79 @@
+@reference "../../index.css";
+
+/* Login Form Component Styles */
+
+.login-form {
+  @apply mt-8 space-y-6;
+}
+
+.login-form__error {
+  @apply rounded-md bg-red-50 p-4;
+}
+
+.login-form__error-content {
+  @apply flex;
+}
+
+.login-form__error-title {
+  @apply text-sm font-medium text-red-800;
+}
+
+.login-form__input-group {
+  @apply space-y-6;
+}
+
+.login-form__field {
+  @apply relative;
+}
+
+.login-form__label {
+  @apply sr-only;
+}
+
+.login-form__input {
+  @apply appearance-none rounded-xl block w-full px-4 py-3 bg-slate-50 border border-slate-200 placeholder-slate-500 text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 focus:z-10 sm:text-sm;
+}
+
+.login-form__input:first-child {
+  @apply rounded-t-md;
+}
+
+.login-form__input:last-child {
+  @apply rounded-b-md;
+}
+
+.login-form__input--error {
+  @apply border-red-300;
+}
+
+.login-form__validation-error {
+  @apply mt-1 text-sm text-red-600;
+}
+
+.login-form__submit {
+  @apply mt-6;
+}
+
+.login-form__button {
+  @apply relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-violet-600 hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500;
+}
+
+.login-form__button--loading {
+  @apply bg-gray-400 cursor-not-allowed;
+}
+
+.login-form__spinner {
+  @apply flex items-center;
+}
+
+.login-form__spinner-icon {
+  @apply animate-spin -ml-1 mr-3 h-5 w-5 text-white;
+}
+
+.login-form__spinner-circle {
+  @apply opacity-25;
+}
+
+.login-form__spinner-path {
+  @apply opacity-75;
+}
