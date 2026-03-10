@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import { api } from '../utils/api';
+import { apiRequest } from '../utils/api';
 
 // Initial state
 const initialState = {
@@ -105,7 +105,10 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: AUTH_ACTIONS.LOGIN_START });
     
     try {
-      const result = await api.login(username, password);
+      const result = await apiRequest('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password }),
+      });
 
       if (result.success) {
         const { token, user } = result.data;
@@ -149,10 +152,51 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
   };
 
+  // Change password function
+  const changePassword = async (oldPassword, newPassword) => {
+    dispatch({ type: AUTH_ACTIONS.LOGIN_START });
+    
+    try {
+      const result = await apiRequest('/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ oldPassword, newPassword }),
+      });
+
+      if (result.success) {
+        // Update user data to reflect first login is now false
+        const updatedUser = { ...state.user, is_first_login: false };
+        
+        // Update localStorage
+        localStorage.setItem('aviocalm_user', JSON.stringify(updatedUser));
+        
+        dispatch({
+          type: AUTH_ACTIONS.LOGIN_SUCCESS,
+          payload: { token: state.token, user: updatedUser },
+        });
+        
+        return { success: true };
+      } else {
+        dispatch({
+          type: AUTH_ACTIONS.LOGIN_FAILURE,
+          payload: { error: result.error || 'Password change failed' },
+        });
+        return { success: false, error: result.error };
+      }
+    } catch (error) {
+      const errorMessage = 'Network error. Please try again.';
+      dispatch({
+        type: AUTH_ACTIONS.LOGIN_FAILURE,
+        payload: { error: errorMessage },
+      });
+      return { success: false, error: errorMessage };
+    }
+  };
+
   const value = {
     ...state,
     login,
     logout,
+    changePassword,
     clearError,
   };
 

@@ -1,0 +1,243 @@
+.global-header {
+  position: fixed;
+  top: 0;
+  left: 280px; /* Account for sidebar width */
+  right: 0;
+  height: 70px;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  border-bottom: 1px solid #475569;
+  z-index: 999;
+  transition: all 0.3s ease;
+}
+
+.global-header--panic {
+  animation: panic-flash 0.5s infinite;
+  border-bottom-color: #ef4444;
+}
+
+@keyframes panic-flash {
+  0%, 100% {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  }
+  50% {
+    background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%);
+  }
+}
+
+.global-header__content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  padding: 0 1.5rem;
+  gap: 1rem;
+}
+
+.global-header__left {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.global-header__search {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  transition: all 0.2s ease;
+  max-width: 400px;
+}
+
+.global-header__search:focus-within {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+.global-header__search-input {
+  background: none;
+  border: none;
+  color: #ffffff;
+  font-size: 0.875rem;
+  padding: 0.25rem 0.5rem;
+  outline: none;
+  flex: 1;
+}
+
+.global-header__search-input::placeholder {
+  color: #9ca3af;
+}
+
+.global-header__search-btn {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  transition: all 0.2s ease;
+}
+
+.global-header__search-btn:hover {
+  color: #ffffff;
+  background: rgba(124, 58, 237, 0.2);
+}
+
+.global-header__search-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Panic Alert */
+.global-header__panic-alert {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+}
+
+.global-header__panic-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #ef4444;
+  color: #ffffff;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  box-shadow: 0 10px 25px rgba(239, 68, 68, 0.3);
+  animation: panic-pulse 1s infinite;
+}
+
+@keyframes panic-pulse {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+}
+
+.global-header__panic-icon {
+  width: 20px;
+  height: 20px;
+  animation: panic-bell 0.5s infinite;
+}
+
+@keyframes panic-bell {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(10deg);
+  }
+  75% {
+    transform: rotate(-10deg);
+  }
+}
+
+.global-header__panic-text {
+  font-size: 0.875rem;
+  letter-spacing: 0.05em;
+}
+
+.global-header__right {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.global-header__status {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.global-header__device {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid;
+  transition: all 0.2s ease;
+}
+
+.global-header__device--connected {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #22c55e;
+}
+
+.global-header__device--disconnected {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.global-header__device-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.global-header__device-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.global-header__user {
+  display: flex;
+  align-items: center;
+}
+
+.global-header__user-info {
+  text-align: right;
+}
+
+.global-header__user-name {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.global-header__user-role {
+  display: block;
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-top: 0.125rem;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .global-header {
+    left: 80px; /* Match collapsed sidebar width */
+    right: 0;
+  }
+  
+  .global-header__device-label {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .global-header {
+    left: 0;
+    padding: 0 1rem;
+  }
+  
+  .global-header__content {
+    padding: 0 0.5rem;
+  }
+  
+  .global-header__user-name {
+    display: none;
+  }
+  
+  .global-header__panic-content {
+    padding: 0.5rem 1rem;
+    font-size: 0.75rem;
+  }
+}
