@@ -79,6 +79,73 @@ const login = async (req, res) => {
     }
 };
 
+// Reset password controller
+const resetPassword = async (req, res) => {
+    try {
+        const { oldPassword, newPassword } = req.body;
+        const userId = req.user.userId; // Get from JWT middleware
+
+        // Validation
+        if (!oldPassword || !newPassword) {
+            return res.status(400).json({
+                success: false,
+                error: 'Old password and new password are required'
+            });
+        }
+
+        // Find user by ID
+        const userQuery = 'SELECT * FROM users WHERE user_id = $1';
+        const userResult = await pool.query(userQuery, [userId]);
+
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'User not found'
+            });
+        }
+
+        const user = userResult.rows[0];
+
+        // Verify old password
+        const isValidPassword = await bcrypt.compare(oldPassword, user.password_hash);
+
+        if (!isValidPassword) {
+            return res.status(401).json({
+                success: false,
+                error: 'Current password is incorrect'
+            });
+        }
+
+        // Hash new password
+        const saltRounds = 10;
+        const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
+
+        // Update password and set is_first_login to false
+        const updateQuery = `
+            UPDATE users 
+            SET password_hash = $1, is_first_login = false, updated_at = CURRENT_TIMESTAMP 
+            WHERE user_id = $2
+        `;
+        await pool.query(updateQuery, [newPasswordHash, userId]);
+
+        // Return success response
+        res.json({
+            success: true,
+            data: {
+                message: 'Password reset successfully'
+            }
+        });
+
+    } catch (error) {
+        console.error('Reset password error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+};
+
 module.exports = {
-    login
+    login,
+    resetPassword
 };

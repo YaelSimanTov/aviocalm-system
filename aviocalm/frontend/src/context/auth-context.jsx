@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import { apiRequest } from '../utils/api';
+import { apiRequest, clearAuthHeaders } from '../utils/api';
 
 // Initial state
 const initialState = {
@@ -104,6 +104,9 @@ export const AuthProvider = ({ children }) => {
   const login = async (username, password) => {
     dispatch({ type: AUTH_ACTIONS.LOGIN_START });
     
+    // Clear any existing auth headers before making login request
+    clearAuthHeaders();
+    
     try {
       const result = await apiRequest('/auth/login', {
         method: 'POST',
@@ -142,8 +145,10 @@ export const AuthProvider = ({ children }) => {
 
   // Logout function
   const logout = () => {
-    localStorage.removeItem('aviocalm_token');
-    localStorage.removeItem('aviocalm_user');
+    // Use the utility function to clear all auth-related storage and headers
+    clearAuthHeaders();
+    
+    // Reset auth state
     dispatch({ type: AUTH_ACTIONS.LOGOUT });
   };
 
@@ -164,7 +169,7 @@ export const AuthProvider = ({ children }) => {
 
       if (result.success) {
         // Update user data to reflect first login is now false
-        const updatedUser = { ...state.user, is_first_login: false };
+        const updatedUser = { ...state.user, isFirstLogin: false };
         
         // Update localStorage
         localStorage.setItem('aviocalm_user', JSON.stringify(updatedUser));

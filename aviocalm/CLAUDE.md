@@ -32,7 +32,7 @@ AvioCalm is a professional therapeutic platform for treating Aerophobia (fear of
 #### User Story 1.2: Internal Password Reset (First Login / Security Update)
 * **[FE] UI:** Build `/reset-password` page as a Protected Route.
 * **[FE] Form:** Form with 3 fields: Current Password, New Password, Confirm New Password.
-* **[FE] Component:** Add a 'Reset Password' button in Dashboard Sidebar/Header.
+* **[FE] Component:** Add a 'Change Password' button in Sidebar.
 * **[FE] Validation:** 8+ chars, Uppercase, Lowercase, Number/Special char.
 * **[BE] API:** `POST /api/auth/reset-password`. Verify current password, hash new, set `is_first_login = false`.
 * **[FE] Flow:** On success -> Show success message -> Call logout() -> Redirect to `/login`.

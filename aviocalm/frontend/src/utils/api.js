@@ -1,6 +1,19 @@
 // API utility for AvioCalm frontend
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
+// Function to clear all auth-related headers and storage
+export const clearAuthHeaders = () => {
+  localStorage.removeItem('aviocalm_token');
+  localStorage.removeItem('aviocalm_user');
+  sessionStorage.removeItem('aviocalm_token');
+  sessionStorage.removeItem('aviocalm_user');
+  
+  // Clear any cached headers
+  if (typeof window !== 'undefined' && window.fetch) {
+    delete window.defaultHeaders;
+  }
+};
+
 // Generic API request function
 export const apiRequest = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
@@ -10,9 +23,9 @@ export const apiRequest = async (endpoint, options = {}) => {
     'Content-Type': 'application/json',
   };
   
-  // Get auth token from localStorage
+  // Only add auth token if not a login request and token exists
   const token = localStorage.getItem('aviocalm_token');
-  if (token) {
+  if (token && !endpoint.includes('/auth/login')) {
     defaultHeaders.Authorization = `Bearer ${token}`;
   }
   
@@ -21,6 +34,11 @@ export const apiRequest = async (endpoint, options = {}) => {
     ...defaultHeaders,
     ...options.headers,
   };
+  
+  // If this is a login request, explicitly remove any Authorization header
+  if (endpoint.includes('/auth/login')) {
+    delete headers.Authorization;
+  }
   
   // Merge options
   const config = {

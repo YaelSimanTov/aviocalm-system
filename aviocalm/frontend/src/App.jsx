@@ -11,6 +11,38 @@ import './index.css';
 const GlobalStats = () => <div className="p-8"><h1 className="text-2xl font-bold">Global Stats</h1><p>Coming soon...</p></div>;
 const NotFound = () => <div className="p-8"><h1 className="text-2xl font-bold text-red-600">404 - Page Not Found</h1></div>;
 
+function PublicRoute({ children }) {
+  const { isAuthenticated, isLoading, user } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If authenticated, redirect to appropriate dashboard
+  if (isAuthenticated && !user?.isFirstLogin) {
+    if (user?.role === 'Owner') {
+      return <Navigate to="/admin/global-stats" replace />;
+    } else if (user?.role === 'Therapist') {
+      return <Navigate to="/patients" replace />;
+    }
+  }
+
+  // If authenticated but first login, redirect to reset-password
+  if (isAuthenticated && user?.isFirstLogin) {
+    return <Navigate to="/reset-password" replace />;
+  }
+
+  // If not authenticated, show public route
+  return children;
+}
+
 function ProtectedRoute({ children, requiredRole }) {
   const { isAuthenticated, isLoading, user } = useAuth();
 
@@ -30,7 +62,7 @@ function ProtectedRoute({ children, requiredRole }) {
   }
 
   // Check first login
-  if (user?.is_first_login) {
+  if (user?.isFirstLogin) {
     return <Navigate to="/reset-password" replace />;
   }
 
@@ -57,7 +89,7 @@ function AppContent() {
   }
 
   // Base route redirect logic
-  if (isAuthenticated && !user?.is_first_login) {
+  if (isAuthenticated && !user?.isFirstLogin) {
     if (user?.role === 'Owner') {
       return <Navigate to="/admin/global-stats" replace />;
     } else if (user?.role === 'Therapist') {
@@ -65,7 +97,13 @@ function AppContent() {
     }
   }
 
-  return <LoginPage />;
+  // If authenticated but first login, redirect to reset-password
+  if (isAuthenticated && user?.isFirstLogin) {
+    return <Navigate to="/reset-password" replace />;
+  }
+
+  // If not authenticated, show login page
+  return <Navigate to="/login" replace />;
 }
 
 function App() {
@@ -74,7 +112,11 @@ function App() {
       <AuthProvider>
         <Routes>
           {/* Public Routes */}
-          <Route path="/login" element={<LoginPage />} />
+          <Route path="/login" element={
+            <PublicRoute>
+              <LoginPage />
+            </PublicRoute>
+          } />
           <Route path="/reset-password" element={
             <ProtectedRoute>
               <ChangePasswordPage />
