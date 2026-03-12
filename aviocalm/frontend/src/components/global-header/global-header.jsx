@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/auth-context';
 import './global-header.css';
 
-export const GlobalHeader = () => {
+export const GlobalHeader = ({ isSidebarCollapsed }) => {
   const { user } = useAuth();
   const [vrConnected, setVrConnected] = useState(true);
   const [watchConnected, setWatchConnected] = useState(true);
@@ -28,7 +28,7 @@ export const GlobalHeader = () => {
   }, []);
 
   return (
-    <header className={`global-header ${panicState ? 'global-header--panic' : ''}`}>
+    <header className={`global-header ${panicState ? 'global-header--panic' : ''} ${isSidebarCollapsed ? 'global-header--sidebar-collapsed' : ''}`}>
       <div className="global-header__content">
         {/* Left Section - Empty (search moved to Patient List) */}
         <div className="global-header__left">

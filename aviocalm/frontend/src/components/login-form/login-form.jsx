@@ -28,11 +28,11 @@ export const LoginForm = ({ onSubmit, isLoading, error }) => {
     const errors = {};
     
     if (!formData.username.trim()) {
-      errors.username = 'Username is required';
+      errors.username = 'Required field';
     }
     
     if (!formData.password.trim()) {
-      errors.password = 'Password is required';
+      errors.password = 'Required field';
     }
     
     setValidationErrors(errors);
@@ -48,7 +48,7 @@ export const LoginForm = ({ onSubmit, isLoading, error }) => {
   };
 
   return (
-    <form className="login-form" onSubmit={handleSubmit}>
+    <form className="login-form" onSubmit={handleSubmit} noValidate>
       {/* Error Display */}
       {error && (
         <div className="login-form__error">

@@ -10,6 +10,10 @@
   transition: all 0.3s ease;
 }
 
+.global-header--sidebar-collapsed {
+  left: 80px; /* Account for collapsed sidebar width */
+}
+
 .global-header--panic {
   animation: panic-flash 0.5s infinite;
   border-bottom-color: #ef4444;

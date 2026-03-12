@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import './sidebar.css';
 
-export const Sidebar = () => {
+export const Sidebar = ({ onToggleCollapse }) => {
   const { user, logout } = useAuth();
   const [isExpanded, setIsExpanded] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState({});
@@ -35,12 +35,19 @@ export const Sidebar = () => {
     logout();
   };
 
+  const handleToggleCollapse = () => {
+    const newExpandedState = !isExpanded;
+    setIsExpanded(newExpandedState);
+    // Notify parent component about the collapse state
+    onToggleCollapse(!newExpandedState);
+  };
+
   return (
     <div className={`sidebar ${isExpanded ? 'sidebar--expanded' : 'sidebar--collapsed'}`}>
       <div className="sidebar__header">
         <button 
           className="sidebar__toggle"
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={handleToggleCollapse}
         >
           {isExpanded ? <X className="sidebar__toggle-icon" /> : <Menu className="sidebar__toggle-icon" />}
         </button>
