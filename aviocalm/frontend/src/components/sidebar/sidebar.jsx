@@ -236,7 +236,7 @@ export const Sidebar = ({ onToggleCollapse }) => {
           {expandedGroups.settings && (
             <div className="sidebar__group-items">
               <Link 
-                to="/reset-password" 
+                to="/change-password" 
                 className="sidebar__item"
               >
                 <div className="sidebar__item-content">

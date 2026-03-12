@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/auth-context';
-import { ChangePasswordForm } from '../components/reset-password/reset-password';
+import { ChangePasswordForm } from '../components/change-password/change-password';
 
 export const ChangePasswordPage = () => {
   const { changePassword, logout, isLoading, isAuthenticated, user } = useAuth();
@@ -36,7 +36,7 @@ export const ChangePasswordPage = () => {
             <div className="text-violet-600 font-bold text-2xl">AC</div>
           </div>
           <h2 className="text-3xl font-extrabold text-white mb-2">
-            Reset Your Password
+            Change Your Password
           </h2>
           <p className="text-violet-200 text-sm">
             AvioCalm - Therapeutic Platform for Aerophobia Treatment

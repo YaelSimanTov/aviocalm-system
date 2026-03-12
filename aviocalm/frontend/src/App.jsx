@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/auth-context';
 import { LoginPage } from './pages/login-page';
 import { ChangePasswordPage } from './pages/change-password-page';
@@ -34,9 +34,9 @@ function PublicRoute({ children }) {
     }
   }
 
-  // If authenticated but first login, redirect to reset-password
+  // If authenticated but first login, redirect to change-password
   if (isAuthenticated && user?.isFirstLogin) {
-    return <Navigate to="/reset-password" replace />;
+    return <Navigate to="/change-password" replace />;
   }
 
   // If not authenticated, show public route
@@ -45,6 +45,7 @@ function PublicRoute({ children }) {
 
 function ProtectedRoute({ children, requiredRole }) {
   const { isAuthenticated, isLoading, user } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -61,9 +62,9 @@ function ProtectedRoute({ children, requiredRole }) {
     return <Navigate to="/login" replace />;
   }
 
-  // Check first login
-  if (user?.isFirstLogin) {
-    return <Navigate to="/reset-password" replace />;
+  // Check first login - but allow access to change-password page
+  if (user?.isFirstLogin && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />;
   }
 
   // Check role-based access
@@ -97,9 +98,9 @@ function AppContent() {
     }
   }
 
-  // If authenticated but first login, redirect to reset-password
+  // If authenticated but first login, redirect to change-password
   if (isAuthenticated && user?.isFirstLogin) {
-    return <Navigate to="/reset-password" replace />;
+    return <Navigate to="/change-password" replace />;
   }
 
   // If not authenticated, show login page
@@ -117,7 +118,7 @@ function App() {
               <LoginPage />
             </PublicRoute>
           } />
-          <Route path="/reset-password" element={
+          <Route path="/change-password" element={
             <ProtectedRoute>
               <ChangePasswordPage />
             </ProtectedRoute>

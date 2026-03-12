@@ -162,7 +162,7 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: AUTH_ACTIONS.LOGIN_START });
     
     try {
-      const result = await apiRequest('/auth/reset-password', {
+      const result = await apiRequest('/auth/change-password', {
         method: 'POST',
         body: JSON.stringify({ oldPassword, newPassword }),
       });

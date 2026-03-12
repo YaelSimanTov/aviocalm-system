@@ -24,17 +24,17 @@ AvioCalm is a professional therapeutic platform for treating Aerophobia (fear of
 
 #### User Story 1.1: System Login
 * **[FE] UI:** Remove 'Forgot Password' link. Add tooltip: 'Forgot your password? Please contact System Owner.'
-* **[FE] Navigation:** If `is_first_login` is True -> Redirect immediately to `/reset-password` (Internal), If False -> Proceed to Role-Based Routing (/patients or /global-stats).
+* **[FE] Navigation:** If `is_first_login` is True -> Redirect immediately to `/change-password` (Internal), If False -> Proceed to Role-Based Routing (/patients or /global-stats).
 * **[BE] API:** `POST /api/auth/login`. Verify Hash, return JWT containing Role. 401 generic error for failures.
 * **[FE] Validation:** Show red "Required field" under empty inputs.
 * **[FE] Error Handling:** Show "Invalid username or password" for 401 errors.
 
-#### User Story 1.2: Internal Password Reset (First Login / Security Update)
-* **[FE] UI:** Build `/reset-password` page as a Protected Route.
+#### User Story 1.2: Internal Password Change (First Login / Security Update)
+* **[FE] UI:** Build `/change-password` page as a Protected Route.
 * **[FE] Form:** Form with 3 fields: Current Password, New Password, Confirm New Password.
-* **[FE] Component:** Add a 'Change Password' button in Sidebar.
+* **[FE] Component:** Add a 'Change Password' button in Sidebar Settings.
 * **[FE] Validation:** 8+ chars, Uppercase, Lowercase, Number/Special char.
-* **[BE] API:** `POST /api/auth/reset-password`. Verify current password, hash new, set `is_first_login = false`.
+* **[BE] API:** `POST /api/auth/change-password`. Verify current password, hash new, set `is_first_login = false`.
 * **[FE] Flow:** On success -> Show success message -> Call logout() -> Redirect to `/login`.
 
 #### User Story 1.3: Therapist Creation & Temporary Password
@@ -44,10 +44,10 @@ AvioCalm is a professional therapeutic platform for treating Aerophobia (fear of
 * **[FE] Validation:** Ensure all fields are filled and username contains no forbidden characters.
 * **[FE] Feedback:** Success modal showing credentials for Owner to copy and send manually.
 
-#### User Story 1.4: Manual Password Reset by Owner
-* **[BE] API:** `POST /api/admin/reset-password-request`.
+#### User Story 1.4: Manual Password Change by Owner
+* **[BE] API:** `POST /api/admin/change-password-request`.
 * **[BE] Logic:** Owner sets a new temp password and flips `is_first_login` back to true.
-* **[FE] UI:** Add a 'Reset Credentials' button (Shield/Key icon) in Team Management table.
+* **[FE] UI:** Add a ' Credentials' button (Shield/Key icon) in Team Management table.
 
 **Important:** Keep all filenames in kebab-case and ensure all security routes are correctly protected.
 
@@ -170,7 +170,7 @@ AvioCalm is a professional therapeutic platform for treating Aerophobia (fear of
 ### 2. Role-Based Routing Logic
 - **Therapist Home Page:** After successful login (when `is_first_login` is false), redirect to **Patient List** (US 2.2).
 - **Owner Home Page:** After successful login (when `is_first_login` is false), redirect to **Global Stats** (US 5.2).
-- **First Login Flow:** If `is_first_login` is true, force redirect to `/reset-password` regardless of role.
+- **First Login Flow:** If `is_first_login` is true, force redirect to `/change-password` regardless of role.
 
 ### 3. Global Header Implementation
 - **Connectivity Status:** Live icons for VR Headset and Smartwatch (Green: Connected / Red: Offline).
@@ -179,7 +179,7 @@ AvioCalm is a professional therapeutic platform for treating Aerophobia (fear of
 - **AI Feedback Loop:** Agree/Disagree buttons for AI recommendations in Live Session.
 
 ### 4. Core Logic & Task Refinement
-- **Epic 1 (Security):** Remove 'Forgot Password'. If `is_first_login` is true, force redirect to `/reset-password`. Successful reset must trigger Auto-Logout.
+- **Epic 1 (Security):** Remove 'Forgot Password'. If `is_first_login` is true, force redirect to `/change-password`. Successful change must trigger Auto-Logout.
 - **Epic 2 (Patients):** Owner role must see all patients; Therapists see only their own. Add 'Status' field (Active/Pending/Closed).
 - **Epic 3 (Real-Time):** Setup WebSocket/MQTT for live data. Sync Heart Rate to VR Timestamps. Implement real-time device status indicators.
 - **Epic 4 (AI & Safety):** Compare HR to MedicalNorms (Age-based). Implement Emergency Stop logic. Add Therapist Feedback Loop (Agree/Disagree) to all AI recommendations. Global Panic Alert system.

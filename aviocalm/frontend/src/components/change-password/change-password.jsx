@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import './reset-password.css';
+import './change-password.css';
 
 export const ChangePasswordForm = ({ onSubmit, isLoading, error, success }) => {
   const [formData, setFormData] = useState({
