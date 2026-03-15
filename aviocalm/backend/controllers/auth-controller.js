@@ -79,8 +79,8 @@ const login = async (req, res) => {
     }
 };
 
-// Reset password controller
-const resetPassword = async (req, res) => {
+// Change password controller
+const  changePassword = async (req, res) => {
     try {
         const { oldPassword, newPassword } = req.body;
         const userId = req.user.userId; // Get from JWT middleware
@@ -110,9 +110,10 @@ const resetPassword = async (req, res) => {
         const isValidPassword = await bcrypt.compare(oldPassword, user.password_hash);
 
         if (!isValidPassword) {
-            return res.status(401).json({
+            return res.status(400).json({
                 success: false,
-                error: 'Current password is incorrect'
+                message: 'Incorrect current password',
+                field: 'oldPassword'
             });
         }
 
@@ -132,12 +133,12 @@ const resetPassword = async (req, res) => {
         res.json({
             success: true,
             data: {
-                message: 'Password reset successfully'
+                message: 'Password change successfully'
             }
         });
 
     } catch (error) {
-        console.error('Reset password error:', error);
+        console.error('Change password error:', error);
         res.status(500).json({
             success: false,
             error: 'Internal server error'
@@ -147,5 +148,5 @@ const resetPassword = async (req, res) => {
 
 module.exports = {
     login,
-    resetPassword
+    changePassword
 };

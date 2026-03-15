@@ -6,6 +6,7 @@ import { ChangePasswordPage } from './pages/change-password-page';
 import { PatientList } from './pages/patient-list';
 import { AuthenticatedLayout } from './layouts/authenticated-layout';
 import './index.css';
+import AddPatientForm from './components/add-patient-form/add-patient-form';
 
 // Placeholder components for routes that don't exist yet
 const GlobalStats = () => <div className="p-8"><h1 className="text-2xl font-bold">Global Stats</h1><p>Coming soon...</p></div>;
@@ -134,6 +135,7 @@ function App() {
             </ProtectedRoute>
           }>
             <Route index element={<PatientList />} />
+            <Route path="add" element={<AddPatientForm />} />
           </Route>
 
           <Route path="/admin/global-stats" element={

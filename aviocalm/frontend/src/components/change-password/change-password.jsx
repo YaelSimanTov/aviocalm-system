@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './change-password.css';
 
-export const ChangePasswordForm = ({ onSubmit, isLoading, error, success }) => {
+export const ChangePasswordForm = ({ onSubmit, isLoading, error, success, fieldErrors }) => {
   const [formData, setFormData] = useState({
     oldPassword: '',
     newPassword: '',
@@ -124,7 +124,7 @@ export const ChangePasswordForm = ({ onSubmit, isLoading, error, success }) => {
   return (
     <div className="change-password">
       <div className="change-password__header">
-        <h2 className="change-password__title">Reset Password</h2>
+        <h2 className="change-password__title">Change Password</h2>
         <p className="change-password__subtitle">
           For your security, please choose a strong password that meets the requirements below.
         </p>
@@ -135,7 +135,7 @@ export const ChangePasswordForm = ({ onSubmit, isLoading, error, success }) => {
         <div className="change-password__success">
           <div className="change-password__success-content">
             <h3 className="change-password__success-title">
-              Your password has been reset successfully! Redirecting to login...
+              Your password has been change successfully! Redirecting to login...
             </h3>
           </div>
         </div>
@@ -152,7 +152,7 @@ export const ChangePasswordForm = ({ onSubmit, isLoading, error, success }) => {
         </div>
       )}
 
-      <form className="change-password__form" onSubmit={handleSubmit}>
+      <form className="change-password__form" onSubmit={handleSubmit} noValidate>
         {/* Old Password Field */}
         <div className="change-password__field">
           <label htmlFor="oldPassword" className="change-password__label">
@@ -165,17 +165,17 @@ export const ChangePasswordForm = ({ onSubmit, isLoading, error, success }) => {
             autoComplete="current-password"
             required
             className={`change-password__input ${
-              validationErrors.oldPassword ? 'change-password__input--error' : ''
+              validationErrors.oldPassword || fieldErrors.oldPassword ? 'change-password__input--error' : ''
             }`}
             placeholder="Enter your current password"
             value={formData.oldPassword}
             onChange={handleChange}
           />
-          {validationErrors.oldPassword && (
+          {validationErrors.oldPassword || fieldErrors.oldPassword ? (
             <p className="change-password__validation-error">
-              {getErrorMessage(validationErrors.oldPassword)}
+              {fieldErrors.oldPassword || validationErrors.oldPassword}
             </p>
-          )}
+          ) : null}
         </div>
 
         {/* New Password Field */}
@@ -221,9 +221,9 @@ export const ChangePasswordForm = ({ onSubmit, isLoading, error, success }) => {
             value={formData.confirmPassword}
             onChange={handleChange}
           />
-          {validationErrors.confirmPassword && (
+          {(validationErrors.confirmPassword || fieldErrors.confirmPassword) && (
             <p className="change-password__validation-error">
-              {validationErrors.confirmPassword}
+              {validationErrors.confirmPassword || fieldErrors.confirmPassword}
             </p>
           )}
         </div>
@@ -264,3 +264,5 @@ export const ChangePasswordForm = ({ onSubmit, isLoading, error, success }) => {
     </div>
   );
 };
+ 
+ 

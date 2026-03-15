@@ -7,11 +7,36 @@ export const ChangePasswordPage = () => {
   const { changePassword, logout, isLoading, isAuthenticated, user } = useAuth();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   const navigate = useNavigate();
 
-  const handleChangePassword = async (oldPassword, newPassword) => {
+  // const handleChangePassword = async (oldPassword, newPassword) => {
+  //   setError('');
+  //   setSuccess(false);
+  //   setFieldErrors({});
+    
+  //   const result = await changePassword(oldPassword, newPassword);
+    
+  //   if (result.success) {
+  //     setSuccess(true);
+  //     // Wait 2 seconds, then logout and redirect to login
+  //     setTimeout(() => {
+  //       logout(); // Clear all tokens and local storage
+  //       navigate('/login');
+  //     }, 2000);
+  //   } else {
+  //     // Handle field-specific errors
+  //     if (result.field) {
+  //       setFieldErrors({ [result.field]: result.message });
+  //     } else {
+  //       setError(result.error);
+  //     }
+  //   }
+  // };
+const handleChangePassword = async (oldPassword, newPassword) => {
     setError('');
     setSuccess(false);
+    setFieldErrors({});
     
     const result = await changePassword(oldPassword, newPassword);
     
@@ -23,10 +48,15 @@ export const ChangePasswordPage = () => {
         navigate('/login');
       }, 2000);
     } else {
-      setError(result.error);
+      // Handle field-specific errors
+      if (result.field) {
+        // התיקון: אנחנו מבקשים את result.error ולא את result.message
+        setFieldErrors({ [result.field]: result.error });
+      } else {
+        setError(result.error);
+      }
     }
   };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-900 via-purple-900 to-indigo-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -49,6 +79,7 @@ export const ChangePasswordPage = () => {
             isLoading={isLoading}
             error={error}
             success={success}
+            fieldErrors={fieldErrors}
           />
         </div>
       </div>
