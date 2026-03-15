@@ -3,17 +3,20 @@ import { apiRequest } from '../../utils/api';
 import './add-patient-form.css';
 
 export const AddPatientForm = () => {
+  const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
-    id: '',
-    name: '',
+    national_id: '',
+    full_name: '',
     phone: '',
     email: '',
-    age: '',
+    date_of_birth: '',
     address: '',
     medical_history: '',
     phobia_type: 'Flight',
     phobia_triggers: '',
-    calming_factors: ''
+    calming_factors: '',
+    emergency_contact_name: '',
+    emergency_contact_phone: ''
   });
 
   const [errors, setErrors] = useState({});
@@ -36,23 +39,46 @@ export const AddPatientForm = () => {
     }
   };
 
-  const validateForm = () => {
+  const validateStep = (step) => {
     const newErrors = {};
     
-    if (!formData.name.trim()) {
-      newErrors.name = 'Name is required';
-    }
-    
-    if (!formData.age || formData.age < 1 || formData.age > 150) {
-      newErrors.age = 'Valid age is required (1-150)';
-    }
-    
-    if (!formData.email && formData.email.trim()) {
-      newErrors.email = 'Invalid email format';
+    if (step === 1) {
+      // Step 1: Personal & Contact validation
+      if (!formData.national_id.trim()) {
+        newErrors.national_id = 'National ID is required';
+      } else if (!/^\d+$/.test(formData.national_id.trim())) {
+        newErrors.national_id = 'National ID must contain only numbers';
+      }
+      
+      if (!formData.full_name.trim()) {
+        newErrors.full_name = 'Full name is required';
+      }
+      
+      if (!formData.date_of_birth.trim()) {
+        newErrors.date_of_birth = 'Date of birth is required';
+      }
+      
+      if (!formData.phone.trim()) {
+        newErrors.phone = 'Phone number is required';
+      } else if (!/^\d+[-\s]?\d*$/.test(formData.phone.trim())) {
+        newErrors.phone = 'Invalid phone format';
+      }
+      
+      if (formData.email && formData.email.trim()) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(formData.email.trim())) {
+          newErrors.email = 'Invalid email format';
+        }
+      }
     }
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const validateForm = () => {
+    // Only validate current step when submitting
+    return validateStep(currentStep);
   };
 
   const handleSubmit = async (e) => {
@@ -73,17 +99,20 @@ export const AddPatientForm = () => {
       if (result.success) {
         setSuccess(true);
         setFormData({
-          id: '',
-          name: '',
+          national_id: '',
+          full_name: '',
           phone: '',
           email: '',
-          age: '',
+          date_of_birth: '',
           address: '',
           medical_history: '',
           phobia_type: 'Flight',
           phobia_triggers: '',
-          calming_factors: ''
+          calming_factors: '',
+          emergency_contact_name: '',
+          emergency_contact_phone: ''
         });
+        setCurrentStep(1);
         
         // Reset success after 3 seconds
         setTimeout(() => setSuccess(false), 3000);
@@ -97,13 +126,35 @@ export const AddPatientForm = () => {
     }
   };
 
+  const nextStep = () => {
+    if (validateStep(currentStep)) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const prevStep = () => {
+    setCurrentStep(currentStep - 1);
+  };
+
   return (
     <div className="add-patient-form">
       <div className="add-patient-form__header">
         <h2 className="add-patient-form__title">Add New Patient</h2>
         <p className="add-patient-form__subtitle">
-          Enter patient information to create a new record in the system.
+          Enter patient information to create a new record in system.
         </p>
+        
+        {/* Progress indicator */}
+        <div className="add-patient-form__progress">
+          <div className={`add-patient-form__step ${currentStep >= 1 ? 'active' : ''}`}>
+            <span className="add-patient-form__step-number">1</span>
+            <span className="add-patient-form__step-title">Personal & Contact</span>
+          </div>
+          <div className={`add-patient-form__step ${currentStep >= 2 ? 'active' : ''}`}>
+            <span className="add-patient-form__step-number">2</span>
+            <span className="add-patient-form__step-title">Medical & Phobia</span>
+          </div>
+        </div>
       </div>
 
       {/* Success Message */}
@@ -129,249 +180,292 @@ export const AddPatientForm = () => {
       )}
 
       <form className="add-patient-form__form" onSubmit={handleSubmit}>
-        <div className="add-patient-form__row">
-          {/* Patient ID */}
-          <div className="add-patient-form__field">
-            <label htmlFor="id" className="add-patient-form__label">
-              Patient ID
-            </label>
-            <input
-              id="id"
-              name="id"
-              type="text"
-              className={`add-patient-form__input ${
-                errors.id ? 'add-patient-form__input--error' : ''
-              }`}
-              placeholder="Auto-generated or enter custom ID"
-              value={formData.id}
-              onChange={handleChange}
-            />
-            {errors.id && (
-              <p className="add-patient-form__error-text">{errors.id}</p>
-            )}
+        {/* Step 1: Personal & Contact Information */}
+        {currentStep === 1 && (
+          <div className="add-patient-form__step-content">
+            <div className="add-patient-form__row">
+              {/* National ID */}
+              <div className="add-patient-form__field">
+                <label htmlFor="national_id" className="add-patient-form__label">
+                  National ID *
+                </label>
+                <input
+                  id="national_id"
+                  name="national_id"
+                  type="text"
+                  required
+                  className={`add-patient-form__input ${
+                    errors.national_id ? 'add-patient-form__input--error' : ''
+                  }`}
+                  placeholder="Enter national ID number"
+                  value={formData.national_id}
+                  onChange={handleChange}
+                />
+                {errors.national_id && (
+                  <p className="add-patient-form__error-text">{errors.national_id}</p>
+                )}
+              </div>
+
+              {/* Full Name */}
+              <div className="add-patient-form__field">
+                <label htmlFor="full_name" className="add-patient-form__label">
+                  Full Name *
+                </label>
+                <input
+                  id="full_name"
+                  name="full_name"
+                  type="text"
+                  required
+                  className={`add-patient-form__input ${
+                    errors.full_name ? 'add-patient-form__input--error' : ''
+                  }`}
+                  placeholder="Enter patient full name"
+                  value={formData.full_name}
+                  onChange={handleChange}
+                />
+                {errors.full_name && (
+                  <p className="add-patient-form__error-text">{errors.full_name}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="add-patient-form__row">
+              {/* Phone */}
+              <div className="add-patient-form__field">
+                <label htmlFor="phone" className="add-patient-form__label">
+                  Phone *
+                </label>
+                <input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  required
+                  className={`add-patient-form__input ${
+                    errors.phone ? 'add-patient-form__input--error' : ''
+                  }`}
+                  placeholder="Enter phone number"
+                  value={formData.phone}
+                  onChange={handleChange}
+                />
+                {errors.phone && (
+                  <p className="add-patient-form__error-text">{errors.phone}</p>
+                )}
+              </div>
+
+              {/* Email */}
+              <div className="add-patient-form__field">
+                <label htmlFor="email" className="add-patient-form__label">
+                  Email
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  className={`add-patient-form__input ${
+                    errors.email ? 'add-patient-form__input--error' : ''
+                  }`}
+                  placeholder="Enter email address"
+                  value={formData.email}
+                  onChange={handleChange}
+                />
+                {errors.email && (
+                  <p className="add-patient-form__error-text">{errors.email}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="add-patient-form__row">
+              {/* Date of Birth */}
+              <div className="add-patient-form__field">
+                <label htmlFor="date_of_birth" className="add-patient-form__label">
+                  Date of Birth *
+                </label>
+                <input
+                  id="date_of_birth"
+                  name="date_of_birth"
+                  type="date"
+                  required
+                  className={`add-patient-form__input ${
+                    errors.date_of_birth ? 'add-patient-form__input--error' : ''
+                  }`}
+                  value={formData.date_of_birth}
+                  onChange={handleChange}
+                />
+                {errors.date_of_birth && (
+                  <p className="add-patient-form__error-text">{errors.date_of_birth}</p>
+                )}
+              </div>
+
+              {/* Address */}
+              <div className="add-patient-form__field">
+                <label htmlFor="address" className="add-patient-form__label">
+                  Address
+                </label>
+                <textarea
+                  id="address"
+                  name="address"
+                  className="add-patient-form__textarea"
+                  placeholder="Enter patient address"
+                  value={formData.address}
+                  onChange={handleChange}
+                  rows="3"
+                />
+              </div>
+            </div>
+
+            <div className="add-patient-form__actions">
+              <button
+                type="button"
+                onClick={nextStep}
+                className="add-patient-form__button add-patient-form__button--secondary"
+              >
+                Next Step
+              </button>
+            </div>
           </div>
+        )}
 
-          {/* Name */}
-          <div className="add-patient-form__field">
-            <label htmlFor="name" className="add-patient-form__label">
-              Name *
-            </label>
-            <input
-              id="name"
-              name="name"
-              type="text"
-              required
-              className={`add-patient-form__input ${
-                errors.name ? 'add-patient-form__input--error' : ''
-              }`}
-              placeholder="Enter patient full name"
-              value={formData.name}
-              onChange={handleChange}
-            />
-            {errors.name && (
-              <p className="add-patient-form__error-text">{errors.name}</p>
-            )}
+        {/* Step 2: Medical & Phobia Information */}
+        {currentStep === 2 && (
+          <div className="add-patient-form__step-content">
+            <div className="add-patient-form__row">
+              {/* Phobia Type */}
+              <div className="add-patient-form__field">
+                <label htmlFor="phobia_type" className="add-patient-form__label">
+                  Phobia Type
+                </label>
+                <select
+                  id="phobia_type"
+                  name="phobia_type"
+                  className="add-patient-form__select"
+                  value={formData.phobia_type}
+                  onChange={handleChange}
+                >
+                  <option value="Flight">Flight Phobia</option>
+                  <option value="Claustrophobia">Claustrophobia</option>
+                  <option value="Acrophobia">Acrophobia</option>
+                  <option value="Social">Social Anxiety</option>
+                </select>
+              </div>
+
+              {/* Medical History */}
+              <div className="add-patient-form__field">
+                <label htmlFor="medical_history" className="add-patient-form__label">
+                  Medical History
+                </label>
+                <textarea
+                  id="medical_history"
+                  name="medical_history"
+                  className="add-patient-form__textarea"
+                  placeholder="Enter relevant medical history"
+                  value={formData.medical_history}
+                  onChange={handleChange}
+                  rows="4"
+                />
+              </div>
+            </div>
+
+            <div className="add-patient-form__row">
+              {/* Phobia Triggers */}
+              <div className="add-patient-form__field">
+                <label htmlFor="phobia_triggers" className="add-patient-form__label">
+                  Phobia Triggers
+                </label>
+                <textarea
+                  id="phobia_triggers"
+                  name="phobia_triggers"
+                  className="add-patient-form__textarea"
+                  placeholder="Describe what triggers the phobia"
+                  value={formData.phobia_triggers}
+                  onChange={handleChange}
+                  rows="3"
+                />
+              </div>
+
+              {/* Calming Factors */}
+              <div className="add-patient-form__field">
+                <label htmlFor="calming_factors" className="add-patient-form__label">
+                  Calming Factors
+                </label>
+                <textarea
+                  id="calming_factors"
+                  name="calming_factors"
+                  className="add-patient-form__textarea"
+                  placeholder="Describe what helps calm the patient"
+                  value={formData.calming_factors}
+                  onChange={handleChange}
+                  rows="3"
+                />
+              </div>
+            </div>
+
+            <div className="add-patient-form__row">
+              {/* Emergency Contact Name */}
+              <div className="add-patient-form__field">
+                <label htmlFor="emergency_contact_name" className="add-patient-form__label">
+                  Emergency Contact Name
+                </label>
+                <input
+                  id="emergency_contact_name"
+                  name="emergency_contact_name"
+                  type="text"
+                  className="add-patient-form__input"
+                  placeholder="Enter emergency contact name"
+                  value={formData.emergency_contact_name}
+                  onChange={handleChange}
+                />
+              </div>
+
+              {/* Emergency Contact Phone */}
+              <div className="add-patient-form__field">
+                <label htmlFor="emergency_contact_phone" className="add-patient-form__label">
+                  Emergency Contact Phone
+                </label>
+                <input
+                  id="emergency_contact_phone"
+                  name="emergency_contact_phone"
+                  type="tel"
+                  className="add-patient-form__input"
+                  placeholder="Enter emergency contact phone"
+                  value={formData.emergency_contact_phone}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
+
+            <div className="add-patient-form__actions">
+              <button
+                type="button"
+                onClick={prevStep}
+                className="add-patient-form__button add-patient-form__button--secondary"
+              >
+                Previous Step
+              </button>
+              
+              <button
+                type="submit"
+                disabled={isLoading}
+                className={`add-patient-form__button ${
+                  isLoading ? 'add-patient-form__button--loading' : ''
+                }`}
+              >
+                {isLoading ? (
+                  <>
+                    <div className="add-patient-form__spinner">
+                      <svg className="add-patient-form__spinner-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="add-patient-form__spinner-circle" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="add-patient-form__spinner-path" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 018 5.291 0 12h4z"></path>
+                      </svg>
+                      Creating Patient...
+                    </div>
+                  </>
+                ) : (
+                  'Create Patient'
+                )}
+              </button>
+            </div>
           </div>
-        </div>
-
-        <div className="add-patient-form__row">
-          {/* Phone */}
-          <div className="add-patient-form__field">
-            <label htmlFor="phone" className="add-patient-form__label">
-              Phone
-            </label>
-            <input
-              id="phone"
-              name="phone"
-              type="tel"
-              className={`add-patient-form__input ${
-                errors.phone ? 'add-patient-form__input--error' : ''
-              }`}
-              placeholder="Enter phone number"
-              value={formData.phone}
-              onChange={handleChange}
-            />
-            {errors.phone && (
-              <p className="add-patient-form__error-text">{errors.phone}</p>
-            )}
-          </div>
-
-          {/* Email */}
-          <div className="add-patient-form__field">
-            <label htmlFor="email" className="add-patient-form__label">
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              className={`add-patient-form__input ${
-                errors.email ? 'add-patient-form__input--error' : ''
-              }`}
-              placeholder="Enter email address"
-              value={formData.email}
-              onChange={handleChange}
-            />
-            {errors.email && (
-              <p className="add-patient-form__error-text">{errors.email}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="add-patient-form__row">
-          {/* Age */}
-          <div className="add-patient-form__field">
-            <label htmlFor="age" className="add-patient-form__label">
-              Age *
-            </label>
-            <input
-              id="age"
-              name="age"
-              type="number"
-              required
-              min="1"
-              max="150"
-              className={`add-patient-form__input ${
-                errors.age ? 'add-patient-form__input--error' : ''
-              }`}
-              placeholder="Enter patient age"
-              value={formData.age}
-              onChange={handleChange}
-            />
-            {errors.age && (
-              <p className="add-patient-form__error-text">{errors.age}</p>
-            )}
-          </div>
-
-          {/* Phobia Type */}
-          <div className="add-patient-form__field">
-            <label htmlFor="phobia_type" className="add-patient-form__label">
-              Phobia Type
-            </label>
-            <select
-              id="phobia_type"
-              name="phobia_type"
-              className="add-patient-form__select"
-              value={formData.phobia_type}
-              onChange={handleChange}
-            >
-              <option value="Flight">Flight Phobia</option>
-              <option value="Claustrophobia">Claustrophobia</option>
-              <option value="Acrophobia">Acrophobia</option>
-              <option value="Social">Social Anxiety</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Address */}
-        <div className="add-patient-form__field">
-          <label htmlFor="address" className="add-patient-form__label">
-            Address
-          </label>
-          <textarea
-            id="address"
-            name="address"
-            className={`add-patient-form__textarea ${
-              errors.address ? 'add-patient-form__input--error' : ''
-            }`}
-            placeholder="Enter patient address"
-            value={formData.address}
-            onChange={handleChange}
-            rows="3"
-          />
-          {errors.address && (
-            <p className="add-patient-form__error-text">{errors.address}</p>
-          )}
-        </div>
-
-        {/* Medical History */}
-        <div className="add-patient-form__field">
-          <label htmlFor="medical_history" className="add-patient-form__label">
-            Medical History
-          </label>
-          <textarea
-            id="medical_history"
-            name="medical_history"
-            className={`add-patient-form__textarea ${
-              errors.medical_history ? 'add-patient-form__input--error' : ''
-            }`}
-            placeholder="Enter relevant medical history"
-            value={formData.medical_history}
-            onChange={handleChange}
-            rows="4"
-          />
-          {errors.medical_history && (
-            <p className="add-patient-form__error-text">{errors.medical_history}</p>
-          )}
-        </div>
-
-        <div className="add-patient-form__row">
-          {/* Phobia Triggers */}
-          <div className="add-patient-form__field">
-            <label htmlFor="phobia_triggers" className="add-patient-form__label">
-              Phobia Triggers
-            </label>
-            <textarea
-              id="phobia_triggers"
-              name="phobia_triggers"
-              className={`add-patient-form__textarea ${
-                errors.phobia_triggers ? 'add-patient-form__input--error' : ''
-              }`}
-              placeholder="Describe what triggers the phobia"
-              value={formData.phobia_triggers}
-              onChange={handleChange}
-              rows="3"
-            />
-            {errors.phobia_triggers && (
-              <p className="add-patient-form__error-text">{errors.phobia_triggers}</p>
-            )}
-          </div>
-
-          {/* Calming Factors */}
-          <div className="add-patient-form__field">
-            <label htmlFor="calming_factors" className="add-patient-form__label">
-              Calming Factors
-            </label>
-            <textarea
-              id="calming_factors"
-              name="calming_factors"
-              className={`add-patient-form__textarea ${
-                errors.calming_factors ? 'add-patient-form__input--error' : ''
-              }`}
-              placeholder="Describe what helps calm the patient"
-              value={formData.calming_factors}
-              onChange={handleChange}
-              rows="3"
-            />
-            {errors.calming_factors && (
-              <p className="add-patient-form__error-text">{errors.calming_factors}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="add-patient-form__actions">
-          <button
-            type="submit"
-            disabled={isLoading}
-            className={`add-patient-form__button ${
-              isLoading ? 'add-patient-form__button--loading' : ''
-            }`}
-          >
-            {isLoading ? (
-              <>
-                <div className="add-patient-form__spinner">
-                  <svg className="add-patient-form__spinner-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="add-patient-form__spinner-circle" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="add-patient-form__spinner-path" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Creating Patient...
-                </div>
-              </>
-            ) : (
-              'Create Patient'
-            )}
-          </button>
-        </div>
+        )}
       </form>
     </div>
   );

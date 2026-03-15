@@ -17,6 +17,40 @@
   @apply text-gray-600 text-sm;
 }
 
+/* Progress indicator */
+.add-patient-form__progress {
+  @apply flex justify-center mb-8;
+}
+
+.add-patient-form__step {
+  @apply flex items-center px-4 py-2 rounded-lg border-2 border-gray-200 transition-colors duration-200;
+}
+
+.add-patient-form__step.active {
+  @apply bg-blue-50 border-blue-500;
+}
+
+.add-patient-form__step-number {
+  @apply w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-3;
+}
+
+.add-patient-form__step.active .add-patient-form__step-number {
+  @apply bg-green-500;
+}
+
+.add-patient-form__step-title {
+  @apply text-sm font-medium;
+}
+
+.add-patient-form__step.active .add-patient-form__step-title {
+  @apply text-green-700;
+}
+
+/* Step content */
+.add-patient-form__step-content {
+  @apply space-y-6;
+}
+
 .add-patient-form__success {
   @apply rounded-md bg-green-50 p-4 mb-6;
 }
@@ -60,11 +94,12 @@
 .add-patient-form__input,
 .add-patient-form__textarea,
 .add-patient-form__select {
-  @apply w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 sm:text-sm;
+  @apply w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200;
 }
 
-.add-patient-form__input--error {
-  @apply border-red-300 focus:ring-red-500 focus:border-red-500;
+.add-patient-form__input--error,
+.add-patient-form__textarea--error {
+  @apply border-red-300 focus:ring-red-500;
 }
 
 .add-patient-form__textarea {
@@ -76,15 +111,19 @@
 }
 
 .add-patient-form__actions {
-  @apply mt-8;
+  @apply flex justify-between;
 }
 
 .add-patient-form__button {
-  @apply w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-violet-600 hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500;
+  @apply px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200;
+}
+
+.add-patient-form__button--secondary {
+  @apply bg-gray-200 text-gray-700 hover:bg-gray-300;
 }
 
 .add-patient-form__button--loading {
-  @apply bg-gray-400 cursor-not-allowed;
+  @apply opacity-75 cursor-not-allowed;
 }
 
 .add-patient-form__spinner {
@@ -92,7 +131,7 @@
 }
 
 .add-patient-form__spinner-icon {
-  @apply animate-spin -ml-1 mr-3 h-5 w-5 text-white;
+  @apply animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600;
 }
 
 .add-patient-form__spinner-circle {

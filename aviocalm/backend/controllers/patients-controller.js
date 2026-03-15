@@ -12,7 +12,7 @@ const getAllPatients = async (req, res) => {
       query = `
         SELECT p.*, u.first_name || ' ' || u.last_name as therapist_name
         FROM patients p
-        LEFT JOIN users u ON p.linked_therapist_id = u.user_id
+        LEFT JOIN users u ON p.therapist_id = u.user_id
         ORDER BY p.created_at DESC
       `;
       params = [];
@@ -21,8 +21,8 @@ const getAllPatients = async (req, res) => {
       query = `
         SELECT p.*, u.first_name || ' ' || u.last_name as therapist_name
         FROM patients p
-        LEFT JOIN users u ON p.linked_therapist_id = u.user_id
-        WHERE p.linked_therapist_id = $1
+        LEFT JOIN users u ON p.therapist_id = u.user_id
+        WHERE p.therapist_id = $1
         ORDER BY p.created_at DESC
       `;
       params = [userId];
@@ -56,7 +56,7 @@ const getPatientById = async (req, res) => {
       query = `
         SELECT p.*, u.first_name || ' ' || u.last_name as therapist_name
         FROM patients p
-        LEFT JOIN users u ON p.linked_therapist_id = u.user_id
+        LEFT JOIN users u ON p.therapist_id = u.user_id
         WHERE p.id = $1
       `;
       params = [id];
@@ -65,8 +65,8 @@ const getPatientById = async (req, res) => {
       query = `
         SELECT p.*, u.first_name || ' ' || u.last_name as therapist_name
         FROM patients p
-        LEFT JOIN users u ON p.linked_therapist_id = u.user_id
-        WHERE p.id = $1 AND p.linked_therapist_id = $2
+        LEFT JOIN users u ON p.therapist_id = u.user_id
+        WHERE p.id = $1 AND p.therapist_id = $2
       `;
       params = [id, userId];
     }
@@ -97,63 +97,74 @@ const getPatientById = async (req, res) => {
 const createPatient = async (req, res) => {
   try {
     const {
-      name,
+      national_id,
+      full_name,
       phone,
       email,
-      age,
+      date_of_birth,
       address,
       medical_history,
       phobia_type = 'Flight',
       phobia_triggers,
-      calming_factors
+      calming_factors,
+      emergency_contact_name,
+      emergency_contact_phone
     } = req.body;
     
-    const { userId } = req.user;
+    const { userId, role } = req.user;
     
-    // Validation
-    if (!name || !age) {
-      return res.status(400).json({
+    // Role-based access control
+    if (role !== 'Therapist') {
+      return res.status(403).json({
         success: false,
-        error: 'Name and age are required'
+        error: 'Only Therapists can create patients'
       });
     }
     
-    // Check for duplicate ID (if provided)
+    // Validation
+    if (!national_id || !full_name || !phone) {
+      return res.status(400).json({
+        success: false,
+        error: 'National ID, full name, and phone are required'
+      });
+    }
+    
+    // Check for duplicate national_id
     const existingPatient = await pool.query(
-      'SELECT id FROM patients WHERE id = $1',
-      [req.body.id]
+      'SELECT national_id FROM patients WHERE national_id = $1',
+      [national_id]
     );
     
     if (existingPatient.rows.length > 0) {
       return res.status(400).json({
         success: false,
-        error: 'Patient ID already exists'
+        error: 'Patient with this National ID already exists'
       });
     }
     
-    // Generate unique ID if not provided
-    const patientId = req.body.id || `P${Date.now().toString().slice(-6)}`;
-    
     const query = `
       INSERT INTO patients (
-        id, name, phone, email, age, address, medical_history, 
-        phobia_type, phobia_triggers, calming_factors, linked_therapist_id
+        national_id, full_name, phone, email, date_of_birth, address, medical_history, 
+        phobia_type, phobia_triggers, calming_factors, 
+        emergency_contact_name, emergency_contact_phone, therapist_id
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
       )
     `;
     
     const values = [
-      patientId,
-      name,
+      national_id,
+      full_name,
       phone || null,
       email || null,
-      parseInt(age),
+      date_of_birth || null,
       address || null,
       medical_history || null,
       phobia_type,
       phobia_triggers || null,
       calming_factors || null,
+      emergency_contact_name || null,
+      emergency_contact_phone || null,
       userId
     ];
     
@@ -162,7 +173,7 @@ const createPatient = async (req, res) => {
     res.status(201).json({
       success: true,
       data: {
-        id: patientId,
+        national_id: national_id,
         message: 'Patient created successfully'
       }
     });

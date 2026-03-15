@@ -56,13 +56,40 @@ AvioCalm is a professional therapeutic platform for treating Aerophobia (fear of
 ### Epic 2: Patient Management
 **Goal:** Allow therapists to create, edit, and view patient records with role-based access control.
 
-#### User Story 2.1: Patient Intake & Management
-* **[DB] Schema:** Table `patients`: `id` (Unique ID/PK), `name`, `phone`, `email`, `age`, `address`, `medical_history`, `phobia_type` (Default: Flight), `phobia_triggers`, `calming_factors`, `status` (Active/Pending/Closed), `linked_therapist_id`.
-* **[FE] UI:** Patient List with Search by Name/ID.
-* **[FE] Form:** Add Patient form with all fields. `phobia_type` as dropdown (Default: "Flight Phobia").
-* **[BE] API:** `POST /api/patients`. Validate unique ID.
-* **[BE] Logic:** Link patient to therapist who created them (`linked_therapist_id`).
-* **[Role Control:** Owner sees all patients; Therapists see only their own.
+#### User Story 2.1: Patient Intake & Management (Updated)
+* **[DB] Schema:** Updated Table `patients`: 
+  - `id` (UUID Primary Key, auto-generated)
+  - `national_id` VARCHAR(20) UNIQUE NOT NULL (Real-world ID/תעודת זהות)
+  - `full_name` VARCHAR(255) NOT NULL
+  - `phone` VARCHAR(20)
+  - `email` VARCHAR(255)
+  - `date_of_birth` DATE
+  - `address` TEXT
+  - `medical_history` TEXT
+  - `phobia_type` VARCHAR(50) DEFAULT 'Flight'
+  - `phobia_description` TEXT
+  - `phobia_triggers` TEXT
+  - `calming_factors` TEXT
+  - `emergency_contact_name` VARCHAR(255)
+  - `emergency_contact_phone` VARCHAR(20)
+  - `therapist_id` UUID NOT NULL REFERENCES users(user_id) (Updated from linked_therapist_id)
+  - `status` VARCHAR(20) DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive', 'Discharged'))
+  - `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  - `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+* **[FE] UI:** Enhanced Patient List with Search by Name/ID.
+* **[FE] Form:** **NEW 2-Step Add Patient Form**:
+  - Step 1: Personal & Contact (National ID, Full Name, Phone, Email, Date of Birth, Address)
+  - Step 2: Medical & Phobia (Phobia Type dropdown, Medical History, Phobia Description, Triggers, Calming Factors, Emergency Contacts)
+  - Progress indicator showing current step
+  - Real-time validation per step
+  - Loading states and error handling
+* **[BE] API:** Enhanced endpoints:
+  - `POST /api/patients` - Therapists only, validates national_id uniqueness
+  - `GET /api/patients` - Role-based (Owner: all, Therapist: own)
+  - `GET /api/patients/:id` - Role-based access control
+  - `PUT /api/patients/:id` - Role-based update with validation
+* **[BE] Logic:** Enhanced RBAC with therapist_id foreign key constraint
+* **[FE] Integration:** Bearer Token authentication, loading spinners, success/error toasts
 
 #### User Story 2.2: Patient Search & Records
 * **[BE] API:** `GET /api/patients/:id` with JOINs for Appointments and History.
