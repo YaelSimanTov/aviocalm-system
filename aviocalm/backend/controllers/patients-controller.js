@@ -215,8 +215,128 @@ const createPatient = async (req, res) => {
   }
 };
 
+// Update patient by ID
+const updatePatient = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role, userId } = req.user;
+    const {
+      national_id,
+      full_name,
+      phone,
+      email,
+      date_of_birth,
+      address,
+      medical_history,
+      phobia_type,
+      phobia_triggers,
+      calming_factors,
+      emergency_contact_name,
+      emergency_contact_phone
+    } = req.body;
+    
+    // First check if patient exists and user has access
+    let checkQuery, checkParams;
+    
+    if (role === 'Owner') {
+      checkQuery = 'SELECT id, therapist_id FROM patients WHERE id = $1';
+      checkParams = [id];
+    } else {
+      checkQuery = 'SELECT id, therapist_id FROM patients WHERE id = $1 AND therapist_id = $2';
+      checkParams = [id, userId];
+    }
+    
+    const existingPatient = await pool.query(checkQuery, checkParams);
+    
+    if (existingPatient.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient not found or access denied'
+      });
+    }
+    
+    // Check for duplicate national_id (if changed)
+    if (national_id && national_id !== existingPatient.rows[0].national_id) {
+      const duplicateCheck = await pool.query(
+        'SELECT id FROM patients WHERE national_id = $1 AND id != $2',
+        [national_id, id]
+      );
+      
+      if (duplicateCheck.rows.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Patient with this National ID already exists'
+        });
+      }
+    }
+    
+    // Update the patient
+    const updateQuery = `
+      UPDATE patients SET 
+        national_id = $1,
+        full_name = $2,
+        phone = $3,
+        email = $4,
+        date_of_birth = $5,
+        address = $6,
+        medical_history = $7,
+        phobia_type = $8,
+        phobia_triggers = $9,
+        calming_factors = $10,
+        emergency_contact_name = $11,
+        emergency_contact_phone = $12,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $13
+    `;
+    
+    const updateValues = [
+      national_id,
+      full_name,
+      phone || null,
+      email || null,
+      date_of_birth || null,
+      address || null,
+      medical_history || null,
+      phobia_type,
+      phobia_triggers || null,
+      calming_factors || null,
+      emergency_contact_name || null,
+      emergency_contact_phone || null,
+      id
+    ];
+    
+    await pool.query(updateQuery, updateValues);
+    
+    // Fetch updated patient data
+    const updatedPatientQuery = `
+      SELECT p.*, u.first_name || ' ' || u.last_name as therapist_name
+      FROM patients p
+      LEFT JOIN users u ON p.therapist_id = u.user_id
+      WHERE p.id = $1
+    `;
+    
+    const updatedResult = await pool.query(updatedPatientQuery, [id]);
+    
+    res.json({
+      success: true,
+      data: {
+        ...updatedResult.rows[0],
+        treatmentHistory: [],
+        appointments: []
+      }
+    });
+  } catch (error) {
+    console.error('Error updating patient:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
 module.exports = {
   getAllPatients,
   getPatientById,
-  createPatient
+  createPatient,
+  updatePatient
 };

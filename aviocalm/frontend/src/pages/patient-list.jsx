@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/auth-context';
+import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../utils/api';
 import './patient-list.css';
 
 export const PatientList = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [patients, setPatients] = useState([]);
   const [filteredPatients, setFilteredPatients] = useState([]);
@@ -57,6 +59,10 @@ export const PatientList = () => {
 
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value);
+  };
+
+  const handleViewDetails = (patientId) => {
+    navigate(`/patients/${patientId}`);
   };
 
   const getStatusColor = (status) => {
@@ -160,8 +166,11 @@ export const PatientList = () => {
                 </td>
                 <td className="patient-list__date">{patient.created_at ? new Date(patient.created_at).toLocaleDateString() : 'N/A'}</td>
                 <td>
-                  <button className="patient-list__action-btn">
-                    View Details
+                  <button 
+                    onClick={() => handleViewDetails(patient.id)}
+                    className="patient-list__action-btn"
+                  >
+                    View Record
                   </button>
                 </td>
               </tr>

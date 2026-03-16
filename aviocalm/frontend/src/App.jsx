@@ -7,6 +7,7 @@ import { PatientList } from './pages/patient-list';
 import { AuthenticatedLayout } from './layouts/authenticated-layout';
 import './index.css';
 import AddPatientForm from './components/add-patient-form/add-patient-form';
+import PatientProfile from './components/patient-profile/patient-profile';
 
 // Placeholder components for routes that don't exist yet
 const GlobalStats = () => <div className="p-8"><h1 className="text-2xl font-bold">Global Stats</h1><p>Coming soon...</p></div>;
@@ -136,6 +137,7 @@ function App() {
           }>
             <Route index element={<PatientList />} />
             <Route path="add" element={<AddPatientForm />} />
+            <Route path=":id" element={<PatientProfile />} />
           </Route>
 
           <Route path="/admin/global-stats" element={

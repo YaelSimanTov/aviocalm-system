@@ -4,7 +4,8 @@ const { authenticateToken } = require('../middleware/auth-middleware');
 const { 
   getAllPatients, 
   getPatientById, 
-  createPatient 
+  createPatient,
+  updatePatient 
 } = require('../controllers/patients-controller');
 
 // All patient routes require authentication
@@ -18,5 +19,8 @@ router.get('/:id', getPatientById);
 
 // POST /api/patients - Create new patient
 router.post('/', createPatient);
+
+// PUT /api/patients/:id - Update patient by ID (role-based)
+router.put('/:id', updatePatient);
 
 module.exports = router;
