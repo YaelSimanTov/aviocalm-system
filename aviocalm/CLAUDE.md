@@ -91,14 +91,23 @@ AvioCalm is a professional therapeutic platform for treating Aerophobia (fear of
 * **[BE] Logic:** Enhanced RBAC with therapist_id foreign key constraint
 * **[FE] Integration:** Bearer Token authentication, loading spinners, success/error toasts
 
-#### User Story 2.2: Patient Search & Records
-* **[BE] API:** `GET /api/patients/:id` with JOINs for Appointments and History.
-* **[FE] UI:** Search Bar in Sidebar and Dashboard. Search by Patient ID/Name.
-* **[FE] UI:** Error handling if patient not found ("Patient ID not found").
-* **[FE] Profile View:** Divided into 3 Tabs/Areas:
-    1. **Personal Info:** Editable (Name, Age, Phobia description).
-    2. **Treatment History:** Table showing Date, VR Room, and Summary Metrics.
+#### User Story 2.2: Patients Dashboard & Search (Updated)
+* **[BE] API:** `GET /api/patients?search=...` - Lightweight search with partial string matching (ILIKE) on full_name or national_id. No heavy joins for performance.
+* **[FE] UI:** Patients Dashboard with Search Bar component at the top.
+* **[FE] Table:** Clean table showing: Name, National ID, and Phobia Type.
+* **[FE] Actions:** 'View Profile' button in Actions column that routes to /patients/:id.
+* **[FE] Empty State:** Graceful handling showing 'No patients found matching your search'.
+* **[Role Control:** Owner sees all patients; Therapists see only their own.
+
+#### User Story 2.3: Full Patient Profile Page with 3 Tabs (NEW)
+* **[FE] UI:** Dedicated Patient Profile Page at /patients/:id replacing the old Modal concept.
+* **[FE] Tabs:** Three-tab interface:
+    1. **Personal Info:** Editable patient details (Full Name, National ID, Phone, Email, Date of Birth, Address, Medical History, Phobia Type, Triggers, Calming Factors, Emergency Contacts).
+    2. **Treatment History:** Table showing Date, VR Room, Summary Metrics, and PDF Export button (US 5.3).
     3. **Appointments:** List of future and past sessions.
+* **[BE] API:** `GET /api/patients/:id` with JOINs for Appointments and History.
+* **[BE] API:** `PUT /api/patients/:id` for updating patient details (Personal Info tab).
+* **[Role Control:** Owner can view any patient; Therapists can only view their own patients.
 
 ---
 
@@ -162,8 +171,8 @@ AvioCalm is a professional therapeutic platform for treating Aerophobia (fear of
 - **BE:** Calculate 'Treatment Success Rate' (Anxiety reduction trends across all patients).
 - **FE:** Display high-level KPIs: Active Patients, Active Therapists, and Phobia Distribution.
 
-#### Task 5.3: Professional PDF Export
-- **FE:** Place the 'Export Summary' button inside the Patient Profile page and the post-session summary screen.
+#### Task 5.3: Professional PDF Export (Updated)
+- **FE:** Place the 'Export Summary' button inside the **Treatment History tab** of the Patient Profile page (US 2.3) and the post-session summary screen.
 - **BE:** PDF must include patient metadata, session graphs, and AI-generated clinical conclusions.
 - **Security:** Add a timestamp and therapist name to the PDF header for clinical auditing.
 

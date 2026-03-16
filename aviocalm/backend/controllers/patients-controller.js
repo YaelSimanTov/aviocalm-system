@@ -1,31 +1,50 @@
 const pool = require('../config/db');
 
-// Get all patients (with role-based filtering)
+// Get all patients (with role-based filtering and search)
 const getAllPatients = async (req, res) => {
   try {
     const { role, userId } = req.user;
+    const { search } = req.query;
     
     let query, params;
     
     if (role === 'Owner') {
-      // Owner sees all patients
-      query = `
-        SELECT p.*, u.first_name || ' ' || u.last_name as therapist_name
-        FROM patients p
-        LEFT JOIN users u ON p.therapist_id = u.user_id
-        ORDER BY p.created_at DESC
-      `;
-      params = [];
+      // Owner sees all patients, with optional search
+      if (search) {
+        query = `
+          SELECT id, full_name, national_id, phobia_type, created_at
+          FROM patients 
+          WHERE full_name ILIKE $1 OR national_id ILIKE $1
+          ORDER BY full_name ASC
+        `;
+        params = [`%${search}%`];
+      } else {
+        query = `
+          SELECT id, full_name, national_id, phobia_type, created_at
+          FROM patients 
+          ORDER BY full_name ASC
+        `;
+        params = [];
+      }
     } else {
-      // Therapists see only their own patients
-      query = `
-        SELECT p.*, u.first_name || ' ' || u.last_name as therapist_name
-        FROM patients p
-        LEFT JOIN users u ON p.therapist_id = u.user_id
-        WHERE p.therapist_id = $1
-        ORDER BY p.created_at DESC
-      `;
-      params = [userId];
+      // Therapists see only their own patients, with optional search
+      if (search) {
+        query = `
+          SELECT id, full_name, national_id, phobia_type, created_at
+          FROM patients 
+          WHERE therapist_id = $1 AND (full_name ILIKE $2 OR national_id ILIKE $2)
+          ORDER BY full_name ASC
+        `;
+        params = [userId, `%${search}%`];
+      } else {
+        query = `
+          SELECT id, full_name, national_id, phobia_type, created_at
+          FROM patients 
+          WHERE therapist_id = $1
+          ORDER BY full_name ASC
+        `;
+        params = [userId];
+      }
     }
     
     const result = await pool.query(query, params);
@@ -80,9 +99,19 @@ const getPatientById = async (req, res) => {
       });
     }
     
+    const patientData = result.rows[0];
+    
+    // Append empty arrays for treatment history and appointments
+    // These will be populated when the respective tables are created
+    const response = {
+      ...patientData,
+      treatmentHistory: [],
+      appointments: []
+    };
+    
     res.json({
       success: true,
-      data: result.rows[0]
+      data: response
     });
   } catch (error) {
     console.error('Error fetching patient:', error);

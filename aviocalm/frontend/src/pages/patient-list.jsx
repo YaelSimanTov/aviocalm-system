@@ -20,12 +20,14 @@ export const PatientList = () => {
           method: 'GET',
         });
         if (result.success) {
-          setPatients(result.data);
+          setPatients(result.data || []);
         } else {
           setError(result.error || 'Failed to fetch patients');
+          setPatients([]);
         }
       } catch (error) {
         setError('Network error. Please try again.');
+        setPatients([]);
       } finally {
         setIsLoading(false);
       }
@@ -36,10 +38,20 @@ export const PatientList = () => {
 
   // Filter patients based on search query
   useEffect(() => {
-    const filtered = patients.filter(patient => 
-      patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      patient.id.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    if (!Array.isArray(patients)) {
+      setFilteredPatients([]);
+      return;
+    }
+    
+    const filtered = patients.filter(patient => {
+      if (!patient) return false;
+      
+      const fullName = (patient.full_name || '').toLowerCase();
+      const nationalId = (patient.national_id || '').toLowerCase();
+      const searchLower = (searchQuery || '').toLowerCase();
+      
+      return fullName.includes(searchLower) || nationalId.includes(searchLower);
+    });
     setFilteredPatients(filtered);
   }, [patients, searchQuery]);
 
@@ -129,26 +141,24 @@ export const PatientList = () => {
         <table className="patient-list__table">
           <thead>
             <tr>
-              <th>Patient ID</th>
+              <th>National ID</th>
               <th>Name</th>
-              <th>Age</th>
               <th>Status</th>
-              <th>Last Session</th>
+              <th>Created Date</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredPatients.map((patient) => (
               <tr key={patient.id} className="patient-list__row">
-                <td className="patient-list__id">{patient.id}</td>
-                <td className="patient-list__name">{patient.name}</td>
-                <td className="patient-list__age">{patient.age}</td>
+                <td className="patient-list__id">{patient.national_id || 'N/A'}</td>
+                <td className="patient-list__name">{patient.full_name || 'N/A'}</td>
                 <td>
                   <span className={`patient-list__status ${getStatusColor(patient.status)}`}>
-                    {patient.status}
+                    {patient.status || 'N/A'}
                   </span>
                 </td>
-                <td className="patient-list__date">{patient.lastSession}</td>
+                <td className="patient-list__date">{patient.created_at ? new Date(patient.created_at).toLocaleDateString() : 'N/A'}</td>
                 <td>
                   <button className="patient-list__action-btn">
                     View Details
