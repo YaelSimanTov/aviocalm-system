@@ -59,7 +59,7 @@ AvioCalm is a professional therapeutic platform for treating Aerophobia (fear of
 #### User Story 2.1: Patient Intake & Management (Updated)
 * **[DB] Schema:** Updated Table `patients`: 
   - `id` (UUID Primary Key, auto-generated)
-  - `national_id` VARCHAR(20) UNIQUE NOT NULL (Real-world ID/תעודת זהות)
+  - `national_id` VARCHAR(20) UNIQUE NOT NULL (Real-world ID)
   - `full_name` VARCHAR(255) NOT NULL
   - `phone` VARCHAR(20)
   - `email` VARCHAR(255)
