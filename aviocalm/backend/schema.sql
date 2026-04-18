@@ -27,16 +27,20 @@ CREATE TABLE users (
 -- Patients Table (Epic 2.1)
 CREATE TABLE patients (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) NOT NULL,
+    national_id VARCHAR(20) UNIQUE NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
     phone VARCHAR(20),
     email VARCHAR(255),
-    age INTEGER CHECK (age > 0 AND age < 150),
+    date_of_birth DATE,
     address TEXT,
     medical_history TEXT,
     phobia_type VARCHAR(50) DEFAULT 'Flight',
     phobia_triggers TEXT,
     calming_factors TEXT,
-    linked_therapist_id UUID NOT NULL REFERENCES users(user_id),
+    emergency_contact_name VARCHAR(255),
+    emergency_contact_phone VARCHAR(20),
+    therapist_id UUID NOT NULL REFERENCES users(user_id),
+    status VARCHAR(20) DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive', 'Discharged')),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -99,7 +103,7 @@ CREATE TABLE scene_stress_scores (
 -- Create indexes for better performance
 CREATE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_users_role ON users(role);
-CREATE INDEX idx_patients_therapist ON patients(linked_therapist_id);
+CREATE INDEX idx_patients_therapist ON patients(therapist_id);
 CREATE INDEX idx_appointments_patient ON appointments(patient_id);
 CREATE INDEX idx_appointments_therapist ON appointments(therapist_id);
 CREATE INDEX idx_appointments_date ON appointments(scheduled_date);

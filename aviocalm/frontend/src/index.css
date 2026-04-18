@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "./layouts/authenticated-layout.css";
+@import "./pages/patient-list.css";
 
 body {
   margin: 0;

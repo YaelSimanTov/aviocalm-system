@@ -28,11 +28,11 @@ export const LoginForm = ({ onSubmit, isLoading, error }) => {
     const errors = {};
     
     if (!formData.username.trim()) {
-      errors.username = 'Username is required';
+      errors.username = 'Required field';
     }
     
     if (!formData.password.trim()) {
-      errors.password = 'Password is required';
+      errors.password = 'Required field';
     }
     
     setValidationErrors(errors);
@@ -48,7 +48,7 @@ export const LoginForm = ({ onSubmit, isLoading, error }) => {
   };
 
   return (
-    <form className="login-form" onSubmit={handleSubmit}>
+    <form className="login-form" onSubmit={handleSubmit} noValidate>
       {/* Error Display */}
       {error && (
         <div className="login-form__error">
@@ -130,9 +130,30 @@ export const LoginForm = ({ onSubmit, isLoading, error }) => {
         </button>
         
         <div className="flex justify-center text-sm mt-4">
-          <a href="/forgot-password" className="font-bold text-violet-600 hover:text-violet-400 transition-colors">
-            Forgot your password? Reset it here
-          </a>
+          <div className="relative group">
+            <div className="flex items-center text-gray-500 cursor-help">
+              <svg 
+                className="w-4 h-4 mr-1" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2} 
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" 
+                />
+              </svg>
+              <span className="text-xs">Need help?</span>
+            </div>
+            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none z-10">
+              Forgot your password? Please contact System Owner.
+              <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                <div className="border-4 border-transparent border-t-gray-800"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </form>

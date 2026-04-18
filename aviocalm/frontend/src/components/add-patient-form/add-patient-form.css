@@ -1,0 +1,143 @@
+/* Add Patient Form Component Styles */
+@reference "../../index.css";
+
+.add-patient-form {
+  @apply w-full max-w-4xl mx-auto bg-white rounded-xl shadow-lg p-8;
+}
+
+.add-patient-form__header {
+  @apply text-center mb-8;
+}
+
+.add-patient-form__title {
+  @apply text-2xl font-bold text-gray-900 mb-2;
+}
+
+.add-patient-form__subtitle {
+  @apply text-gray-600 text-sm;
+}
+
+/* Progress indicator */
+.add-patient-form__progress {
+  @apply flex justify-center mb-8;
+}
+
+.add-patient-form__step {
+  @apply flex items-center px-4 py-2 rounded-lg border-2 border-gray-200 transition-colors duration-200;
+}
+
+.add-patient-form__step.active {
+  @apply bg-blue-50 border-blue-500;
+}
+
+.add-patient-form__step-number {
+  @apply w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-3;
+}
+
+.add-patient-form__step.active .add-patient-form__step-number {
+  @apply bg-green-500;
+}
+
+.add-patient-form__step-title {
+  @apply text-sm font-medium;
+}
+
+.add-patient-form__step.active .add-patient-form__step-title {
+  @apply text-green-700;
+}
+
+/* Step content */
+.add-patient-form__step-content {
+  @apply space-y-6;
+}
+
+.add-patient-form__success {
+  @apply rounded-md bg-green-50 p-4 mb-6;
+}
+
+.add-patient-form__success-content {
+  @apply flex;
+}
+
+.add-patient-form__success-title {
+  @apply text-sm font-medium text-green-800;
+}
+
+.add-patient-form__error {
+  @apply rounded-md bg-red-50 p-4 mb-6;
+}
+
+.add-patient-form__error-content {
+  @apply flex;
+}
+
+.add-patient-form__error-title {
+  @apply text-sm font-medium text-red-800;
+}
+
+.add-patient-form__form {
+  @apply space-y-6;
+}
+
+.add-patient-form__row {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-6;
+}
+
+.add-patient-form__field {
+  @apply space-y-2;
+}
+
+.add-patient-form__label {
+  @apply block text-sm font-medium text-gray-700;
+}
+
+.add-patient-form__input,
+.add-patient-form__textarea,
+.add-patient-form__select {
+  @apply w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200;
+}
+
+.add-patient-form__input--error,
+.add-patient-form__textarea--error {
+  @apply border-red-300 focus:ring-red-500;
+}
+
+.add-patient-form__textarea {
+  @apply resize-none;
+}
+
+.add-patient-form__error-text {
+  @apply mt-1 text-sm text-red-600;
+}
+
+.add-patient-form__actions {
+  @apply flex justify-between;
+}
+
+.add-patient-form__button {
+  @apply px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200;
+}
+
+.add-patient-form__button--secondary {
+  @apply bg-gray-200 text-gray-700 hover:bg-gray-300;
+}
+
+.add-patient-form__button--loading {
+  @apply opacity-75 cursor-not-allowed;
+}
+
+.add-patient-form__spinner {
+  @apply flex items-center;
+}
+
+.add-patient-form__spinner-icon {
+  @apply animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600;
+}
+
+.add-patient-form__spinner-circle {
+  @apply opacity-25;
+}
+
+.add-patient-form__spinner-path {
+  @apply opacity-75;
+}
