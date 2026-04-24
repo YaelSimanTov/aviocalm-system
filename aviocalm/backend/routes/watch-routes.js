@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../config/db");
 
+// Calculate a simple stress score based on heart rate and SpO2
 function calculateStressScore(heartRate, spo2) {
   let score = 0;
 
@@ -30,6 +31,36 @@ function calculateStressScore(heartRate, spo2) {
   return Math.min(score, 100);
 }
 
+// Detect distress based on biometric thresholds
+function detectDistressAlert(heartRate, spo2, stressScore) {
+  if (spo2 !== null && spo2 !== undefined && spo2 < 92) {
+    return {
+      distressAlert: true,
+      alertReason: "Low SpO2",
+    };
+  }
+
+  if (heartRate >= 100) {
+    return {
+      distressAlert: true,
+      alertReason: "High heart rate",
+    };
+  }
+
+  if (stressScore >= 70) {
+    return {
+      distressAlert: true,
+      alertReason: "High stress score",
+    };
+  }
+
+  return {
+    distressAlert: false,
+    alertReason: null,
+  };
+}
+
+// Receive and save watch biometric data
 router.post("/data", async (req, res) => {
   try {
     const { heartRate, spo2, timestamp, patientId, sessionId } = req.body;
@@ -65,14 +96,38 @@ router.post("/data", async (req, res) => {
         spo2Number,
         stressScore,
         recordedAt,
-      ]);
+      ]
+    );
 
-    console.log("Watch data saved:", result.rows[0]);
+    const savedMeasurement = result.rows[0];
+
+    const alert = detectDistressAlert(
+      savedMeasurement.heart_rate,
+      savedMeasurement.spo2,
+      savedMeasurement.stress_score
+    );
+
+    console.log("Watch data saved:", {
+      ...savedMeasurement,
+      distress_alert: alert.distressAlert,
+      alert_reason: alert.alertReason,
+    });
 
     return res.status(200).json({
       success: true,
       message: "Watch data saved successfully",
-      data: result.rows[0],
+      data: {
+        id: savedMeasurement.id,
+        patientId: savedMeasurement.patient_id,
+        sessionId: savedMeasurement.session_id,
+        heartRate: savedMeasurement.heart_rate,
+        spo2: savedMeasurement.spo2,
+        stressScore: savedMeasurement.stress_score,
+        recordedAt: savedMeasurement.recorded_at,
+        createdAt: savedMeasurement.created_at,
+        distressAlert: alert.distressAlert,
+        alertReason: alert.alertReason,
+      },
     });
   } catch (error) {
     console.error("Watch data error:", error);
@@ -80,6 +135,66 @@ router.post("/data", async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Server error while receiving watch data",
+    });
+  }
+});
+
+// Get latest watch measurement
+router.get("/latest", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      SELECT
+        id,
+        patient_id,
+        session_id,
+        heart_rate,
+        spo2,
+        stress_score,
+        recorded_at,
+        created_at
+      FROM watch_measurements
+      ORDER BY recorded_at DESC
+      LIMIT 1
+      `
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No watch measurements found",
+      });
+    }
+
+    const row = result.rows[0];
+
+    const alert = detectDistressAlert(
+      row.heart_rate,
+      row.spo2,
+      row.stress_score
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: row.id,
+        patientId: row.patient_id,
+        sessionId: row.session_id,
+        heartRate: row.heart_rate,
+        spo2: row.spo2,
+        stressScore: row.stress_score,
+        recordedAt: row.recorded_at,
+        createdAt: row.created_at,
+        distressAlert: alert.distressAlert,
+        alertReason: alert.alertReason,
+      },
+    });
+  } catch (error) {
+    console.error("Get latest watch data error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error while fetching latest watch data",
     });
   }
 });
