@@ -96,3 +96,5 @@ jspm_packages/
 
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
+frontend/dist
+backend/reset-admin-password.js
