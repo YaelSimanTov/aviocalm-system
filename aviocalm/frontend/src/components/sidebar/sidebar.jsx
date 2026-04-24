@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context';
-import { 
-  Menu, 
-  X, 
-  Users, 
-  UserPlus, 
-  Activity, 
-  Brain, 
-  BarChart3, 
-  Network, 
-  Calendar, 
-  Shield, 
-  Settings, 
+import {
+  Menu,
+  X,
+  Users,
+  UserPlus,
+  Activity,
+  Brain,
+  BarChart3,
+  Network,
+  Calendar,
+  Shield,
+  Settings,
   LogOut,
   ChevronRight,
   ChevronDown
@@ -38,14 +38,13 @@ export const Sidebar = ({ onToggleCollapse }) => {
   const handleToggleCollapse = () => {
     const newExpandedState = !isExpanded;
     setIsExpanded(newExpandedState);
-    // Notify parent component about the collapse state
     onToggleCollapse(!newExpandedState);
   };
 
   return (
     <div className={`sidebar ${isExpanded ? 'sidebar--expanded' : 'sidebar--collapsed'}`}>
       <div className="sidebar__header">
-        <button 
+        <button
           className="sidebar__toggle"
           onClick={handleToggleCollapse}
         >
@@ -57,34 +56,31 @@ export const Sidebar = ({ onToggleCollapse }) => {
       </div>
 
       <nav className="sidebar__nav">
+
         {/* Clinical Group */}
         <div className="sidebar__group">
-          <button 
+          <button
             className="sidebar__group-header"
             onClick={() => toggleGroup('clinical')}
           >
             <Users className="sidebar__group-icon" />
             <span className="sidebar__group-text">Clinical</span>
-            {expandedGroups.clinical ? 
-              <ChevronDown className="sidebar__group-chevron" /> : 
+            {expandedGroups.clinical ?
+              <ChevronDown className="sidebar__group-chevron" /> :
               <ChevronRight className="sidebar__group-chevron" />
             }
           </button>
+
           {expandedGroups.clinical && (
             <div className="sidebar__group-items">
-              <Link 
-                to="/patients" 
-                className="sidebar__item"
-              >
+              <Link to="/patients" className="sidebar__item">
                 <div className="sidebar__item-content">
                   <Users className="sidebar__item-icon" />
                   <span className="sidebar__text">Patient List</span>
                 </div>
               </Link>
-              <Link 
-                to="/patients/add" 
-                className="sidebar__item"
-              >
+
+              <Link to="/patients/add" className="sidebar__item">
                 <div className="sidebar__item-content">
                   <UserPlus className="sidebar__item-icon" />
                   <span className="sidebar__text">Add Patient</span>
@@ -94,34 +90,30 @@ export const Sidebar = ({ onToggleCollapse }) => {
           )}
         </div>
 
-        {/* Live Session Group */}
+        {/* Live Session */}
         <div className="sidebar__group">
-          <button 
+          <button
             className="sidebar__group-header"
             onClick={() => toggleGroup('liveSession')}
           >
             <Activity className="sidebar__group-icon" />
             <span className="sidebar__group-text">Live Session</span>
-            {expandedGroups.liveSession ? 
-              <ChevronDown className="sidebar__group-chevron" /> : 
+            {expandedGroups.liveSession ?
+              <ChevronDown className="sidebar__group-chevron" /> :
               <ChevronRight className="sidebar__group-chevron" />
             }
           </button>
+
           {expandedGroups.liveSession && (
             <div className="sidebar__group-items">
-              <Link 
-                to="/live-monitor" 
-                className="sidebar__item"
-              >
+              <Link to="/live-monitor" className="sidebar__item">
                 <div className="sidebar__item-content">
                   <Activity className="sidebar__item-icon" />
                   <span className="sidebar__text">Active Monitor</span>
                 </div>
               </Link>
-              <Link 
-                to="/ai-insights" 
-                className="sidebar__item"
-              >
+
+              <Link to="/ai-insights" className="sidebar__item">
                 <div className="sidebar__item-content">
                   <Brain className="sidebar__item-icon" />
                   <span className="sidebar__text">AI Insights</span>
@@ -131,34 +123,30 @@ export const Sidebar = ({ onToggleCollapse }) => {
           )}
         </div>
 
-        {/* Analytics Group */}
+        {/* Analytics */}
         <div className="sidebar__group">
-          <button 
+          <button
             className="sidebar__group-header"
             onClick={() => toggleGroup('analytics')}
           >
             <BarChart3 className="sidebar__group-icon" />
             <span className="sidebar__group-text">Analytics</span>
-            {expandedGroups.analytics ? 
-              <ChevronDown className="sidebar__group-chevron" /> : 
+            {expandedGroups.analytics ?
+              <ChevronDown className="sidebar__group-chevron" /> :
               <ChevronRight className="sidebar__group-chevron" />
             }
           </button>
+
           {expandedGroups.analytics && (
             <div className="sidebar__group-items">
-              <Link 
-                to="/stress-trends" 
-                className="sidebar__item"
-              >
+              <Link to="/stress-trends" className="sidebar__item">
                 <div className="sidebar__item-content">
                   <BarChart3 className="sidebar__item-icon" />
                   <span className="sidebar__text">Patient Insights</span>
                 </div>
               </Link>
-              <Link 
-                to="/patient-clusters" 
-                className="sidebar__item"
-              >
+
+              <Link to="/patient-clusters" className="sidebar__item">
                 <div className="sidebar__item-content">
                   <Network className="sidebar__item-icon" />
                   <span className="sidebar__text">Clinical Cohorts</span>
@@ -170,10 +158,7 @@ export const Sidebar = ({ onToggleCollapse }) => {
 
         {/* Calendar */}
         <div className="sidebar__section">
-          <Link 
-            to="/calendar" 
-            className="sidebar__item"
-          >
+          <Link to="/calendar" className="sidebar__item">
             <div className="sidebar__item-content">
               <Calendar className="sidebar__item-icon" />
               <span className="sidebar__text">Calendar</span>
@@ -181,70 +166,76 @@ export const Sidebar = ({ onToggleCollapse }) => {
           </Link>
         </div>
 
-        {/* Admin Group - Owner Only */}
+        {/* Admin */}
         {user?.role === 'Owner' && (
           <div className="sidebar__group">
-            <button 
+
+            <button
               className="sidebar__group-header"
               onClick={() => toggleGroup('admin')}
             >
               <Shield className="sidebar__group-icon" />
               <span className="sidebar__group-text">Admin</span>
-              {expandedGroups.admin ? 
-                <ChevronDown className="sidebar__group-chevron" /> : 
+              {expandedGroups.admin ?
+                <ChevronDown className="sidebar__group-chevron" /> :
                 <ChevronRight className="sidebar__group-chevron" />
               }
             </button>
+
             {expandedGroups.admin && (
               <div className="sidebar__group-items">
-                <Link 
-                  to="/admin/team-management" 
-                  className="sidebar__item"
-                >
+
+                <Link to="/admin/therapists" className="sidebar__item">
                   <div className="sidebar__item-content">
                     <Users className="sidebar__item-icon" />
                     <span className="sidebar__text">Team Management</span>
                   </div>
                 </Link>
-                <Link 
-                  to="/admin/global-stats" 
-                  className="sidebar__item"
-                >
+
+                <Link to="/create-therapist" className="sidebar__item">
+                  <div className="sidebar__item-content">
+                    <UserPlus className="sidebar__item-icon" />
+                    <span className="sidebar__text">Add Therapist</span>
+                  </div>
+                </Link>
+
+                <Link to="/admin/global-stats" className="sidebar__item">
                   <div className="sidebar__item-content">
                     <BarChart3 className="sidebar__item-icon" />
                     <span className="sidebar__text">Global Stats</span>
                   </div>
                 </Link>
+
               </div>
             )}
-          </div>
+
+          </div>  // ✅ הסוגר שהיה חסר
         )}
 
-        {/* Settings Group */}
+        {/* Settings */}
         <div className="sidebar__group">
-          <button 
+          <button
             className="sidebar__group-header"
             onClick={() => toggleGroup('settings')}
           >
             <Settings className="sidebar__group-icon" />
             <span className="sidebar__group-text">Settings</span>
-            {expandedGroups.settings ? 
-              <ChevronDown className="sidebar__group-chevron" /> : 
+            {expandedGroups.settings ?
+              <ChevronDown className="sidebar__group-chevron" /> :
               <ChevronRight className="sidebar__group-chevron" />
             }
           </button>
+
           {expandedGroups.settings && (
             <div className="sidebar__group-items">
-              <Link 
-                to="/change-password" 
-                className="sidebar__item"
-              >
+              <Link to="/change-password" className="sidebar__item">
                 <div className="sidebar__item-content">
                   <Settings className="sidebar__item-icon" />
                   <span className="sidebar__text">Change Password</span>
                 </div>
               </Link>
-              <button 
+
+              <button
                 onClick={handleLogout}
                 className="sidebar__item sidebar__item--logout"
               >
@@ -256,6 +247,7 @@ export const Sidebar = ({ onToggleCollapse }) => {
             </div>
           )}
         </div>
+
       </nav>
     </div>
   );

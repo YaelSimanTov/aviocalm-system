@@ -8,6 +8,10 @@ import { AuthenticatedLayout } from './layouts/authenticated-layout';
 import './index.css';
 import AddPatientForm from './components/add-patient-form/add-patient-form';
 import PatientProfile from './components/patient-profile/patient-profile';
+import CreateTherapistPage from "./pages/create-therapist-page";
+import TherapistList from "./components/therapist-list/therapistlist";
+
+
 
 // Placeholder components for routes that don't exist yet
 const GlobalStats = () => <div className="p-8"><h1 className="text-2xl font-bold">Global Stats</h1><p>Coming soon...</p></div>;
@@ -128,7 +132,11 @@ function App() {
 
           {/* Base Route - Handles role-based redirects */}
           <Route path="/" element={<AppContent />} />
-
+          <Route path="/create-therapist" element={
+            <ProtectedRoute>
+              <CreateTherapistPage />
+            </ProtectedRoute>
+          } />
           {/* Protected Routes */}
           <Route path="/patients" element={
             <ProtectedRoute>
@@ -147,7 +155,13 @@ function App() {
           }>
             <Route index element={<GlobalStats />} />
           </Route>
-
+          <Route path="/admin/therapists" element={
+           <ProtectedRoute requiredRole="Owner">
+            <AuthenticatedLayout />
+          </ProtectedRoute>
+          }>
+  <Route index element={<TherapistList />} />
+</Route>
           {/* Catch-all 404 */}
           <Route path="*" element={<NotFound />} />
         </Routes>
