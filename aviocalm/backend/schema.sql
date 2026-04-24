@@ -88,6 +88,26 @@ CREATE TABLE anxiety_profile (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS watch_measurements (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id UUID REFERENCES patients(id),
+    session_id UUID,
+    heart_rate INTEGER NOT NULL,
+    spo2 INTEGER,
+    stress_score INTEGER,
+    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_watch_measurements_recorded_at 
+ON watch_measurements(recorded_at);
+
+CREATE INDEX IF NOT EXISTS idx_watch_measurements_patient
+ON watch_measurements(patient_id);
+
+CREATE INDEX IF NOT EXISTS idx_watch_measurements_session
+ON watch_measurements(session_id);
+
 -- Scene Stress Scores Table (Epic 3.1)
 CREATE TABLE scene_stress_scores (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
