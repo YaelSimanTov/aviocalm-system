@@ -2,6 +2,11 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../config/db");
 
+let activeWatchSession = {
+  patientId: null,
+  sessionId: null,
+};
+
 // Calculate a simple stress score based on heart rate and SpO2
 function calculateStressScore(heartRate, spo2) {
   let score = 0;
@@ -33,9 +38,6 @@ function calculateStressScore(heartRate, spo2) {
 
 // Detect distress based on biometric thresholds
 function detectDistressAlert(heartRate, spo2, stressScore) {
-  // TEST MODE:
-  // כרגע 98 כדי לבדוק שהתראה עובדת גם כש-SpO2 הוא 97.
-  // אחרי הבדיקה נחזיר ל-92.
   if (spo2 !== null && spo2 !== undefined && spo2 < 92) {
     return {
       distressAlert: true,
@@ -100,6 +102,9 @@ router.post("/data", async (req, res) => {
 
     const recordedAt = timestamp ? new Date(timestamp) : new Date();
 
+    const finalPatientId = patientId || activeWatchSession.patientId || null;
+    const finalSessionId = sessionId || activeWatchSession.sessionId || null;
+
     const result = await pool.query(
       `
       INSERT INTO watch_measurements
@@ -109,8 +114,8 @@ router.post("/data", async (req, res) => {
       RETURNING *
       `,
       [
-        patientId || null,
-        sessionId || null,
+        finalPatientId,
+        finalSessionId,
         heartRateNumber,
         spo2Number,
         stressScore,
@@ -252,6 +257,64 @@ router.get("/recent", async (req, res) => {
       message: "Server error while fetching recent watch data",
     });
   }
+});
+
+// Start active watch session
+router.post("/session/start", async (req, res) => {
+  try {
+    const { patientId, sessionId } = req.body;
+
+    if (!patientId || !sessionId) {
+      return res.status(400).json({
+        success: false,
+        message: "patientId and sessionId are required",
+      });
+    }
+
+    activeWatchSession = {
+      patientId,
+      sessionId,
+    };
+
+    console.log("Active watch session started:", activeWatchSession);
+
+    return res.status(200).json({
+      success: true,
+      message: "Active watch session started",
+      data: activeWatchSession,
+    });
+  } catch (error) {
+    console.error("Start watch session error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error while starting watch session",
+    });
+  }
+});
+
+// Get active watch session
+router.get("/session/status", (req, res) => {
+  return res.status(200).json({
+    success: true,
+    data: activeWatchSession,
+  });
+});
+
+// Stop active watch session
+router.post("/session/stop", (req, res) => {
+  activeWatchSession = {
+    patientId: null,
+    sessionId: null,
+  };
+
+  console.log("Active watch session stopped");
+
+  return res.status(200).json({
+    success: true,
+    message: "Active watch session stopped",
+    data: activeWatchSession,
+  });
 });
 
 module.exports = router;
