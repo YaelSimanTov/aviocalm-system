@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { io } from 'socket.io-client';
 import { useAuth } from '../../context/auth-context';
 import './global-header.css';
 
@@ -6,7 +7,7 @@ export const GlobalHeader = ({ isSidebarCollapsed }) => {
   const { user } = useAuth();
 
   // VR is still simulated for now because we are working only on the watch
-  const [vrConnected, setVrConnected] = useState(true);
+  const [vrConnected] = useState(true);
 
   // Real watch data from backend
   const [watchConnected, setWatchConnected] = useState(false);
@@ -17,8 +18,9 @@ export const GlobalHeader = ({ isSidebarCollapsed }) => {
   useEffect(() => {
     const fetchLatestWatchData = async () => {
       try {
-        const response = await fetch('/api/watch/latest');
-
+        const response = await fetch(`/api/watch/latest?t=${Date.now()}`, {
+          cache: 'no-store',
+        });
         if (!response.ok) {
           setWatchConnected(false);
           setWatchError('No watch data');
@@ -29,10 +31,21 @@ export const GlobalHeader = ({ isSidebarCollapsed }) => {
         const result = await response.json();
 
         if (result.success && result.data) {
-          setWatchData(result.data);
-          setWatchConnected(true);
-          setWatchError(null);
-          setPanicState(Boolean(result.data.distressAlert));
+          const latestTime = new Date(result.data.createdAt || result.data.recordedAt).getTime();
+          const now = Date.now();
+          const isFresh = now - latestTime < 60000; // 60 seconds
+
+          if (isFresh) {
+            setWatchData(result.data);
+            setWatchConnected(true);
+            setWatchError(null);
+            setPanicState(Boolean(result.data.distressAlert));
+          } else {
+            setWatchData(null);
+            setWatchConnected(false);
+            setWatchError('Watch data is stale');
+            setPanicState(false);
+          }
         } else {
           setWatchConnected(false);
           setWatchError('Invalid watch response');
@@ -48,9 +61,56 @@ export const GlobalHeader = ({ isSidebarCollapsed }) => {
 
     fetchLatestWatchData();
 
+    // Fallback polling in case socket disconnects
     const interval = setInterval(fetchLatestWatchData, 3000);
 
-    return () => clearInterval(interval);
+    // Real-time Socket.io connection
+    const socket = io('http://localhost:5000');
+
+    socket.on('connect', () => {
+      console.log('Connected to watch socket');
+      setWatchConnected(true);
+      setWatchError(null);
+    });
+
+    socket.on('watch:data', (data) => {
+      console.log('Received watch data from socket:', data);
+    
+      const distressAlert = Boolean(data.distressAlert ?? data.distress_alert);
+      const alertReason = data.alertReason ?? data.alert_reason ?? null;
+    
+      const normalizedData = {
+        ...data,
+        heartRate: data.heartRate ?? data.heart_rate,
+        stressScore: data.stressScore ?? data.stress_score,
+        recordedAt: data.recordedAt ?? data.recorded_at,
+        createdAt: data.createdAt ?? data.created_at,
+        distressAlert,
+        alertReason,
+      };
+    
+      setWatchData(normalizedData);
+      setWatchConnected(true);
+      setWatchError(null);
+      setPanicState(distressAlert);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Disconnected from watch socket');
+      setWatchConnected(false);
+      setWatchError('Socket disconnected');
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
+      setWatchConnected(false);
+      setWatchError('Socket connection error');
+    });
+
+    return () => {
+      clearInterval(interval);
+      socket.disconnect();
+    };
   }, []);
 
   return (

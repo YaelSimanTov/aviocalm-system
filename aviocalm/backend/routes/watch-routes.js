@@ -33,6 +33,9 @@ function calculateStressScore(heartRate, spo2) {
 
 // Detect distress based on biometric thresholds
 function detectDistressAlert(heartRate, spo2, stressScore) {
+  // TEST MODE:
+  // כרגע 98 כדי לבדוק שהתראה עובדת גם כש-SpO2 הוא 97.
+  // אחרי הבדיקה נחזיר ל-92.
   if (spo2 !== null && spo2 !== undefined && spo2 < 92) {
     return {
       distressAlert: true,
@@ -57,6 +60,22 @@ function detectDistressAlert(heartRate, spo2, stressScore) {
   return {
     distressAlert: false,
     alertReason: null,
+  };
+}
+
+// Convert DB row + alert into the DTO sent to frontend
+function buildWatchPayload(row, alert) {
+  return {
+    id: row.id,
+    patientId: row.patient_id,
+    sessionId: row.session_id,
+    heartRate: row.heart_rate,
+    spo2: row.spo2,
+    stressScore: row.stress_score,
+    recordedAt: row.recorded_at,
+    createdAt: row.created_at,
+    distressAlert: alert.distressAlert,
+    alertReason: alert.alertReason,
   };
 }
 
@@ -107,6 +126,14 @@ router.post("/data", async (req, res) => {
       savedMeasurement.stress_score
     );
 
+    const watchPayload = buildWatchPayload(savedMeasurement, alert);
+
+    const io = req.app.get("io");
+
+    if (io) {
+      io.emit("watch:data", watchPayload);
+    }
+
     console.log("Watch data saved:", {
       ...savedMeasurement,
       distress_alert: alert.distressAlert,
@@ -116,18 +143,7 @@ router.post("/data", async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Watch data saved successfully",
-      data: {
-        id: savedMeasurement.id,
-        patientId: savedMeasurement.patient_id,
-        sessionId: savedMeasurement.session_id,
-        heartRate: savedMeasurement.heart_rate,
-        spo2: savedMeasurement.spo2,
-        stressScore: savedMeasurement.stress_score,
-        recordedAt: savedMeasurement.recorded_at,
-        createdAt: savedMeasurement.created_at,
-        distressAlert: alert.distressAlert,
-        alertReason: alert.alertReason,
-      },
+      data: watchPayload,
     });
   } catch (error) {
     console.error("Watch data error:", error);
@@ -174,20 +190,11 @@ router.get("/latest", async (req, res) => {
       row.stress_score
     );
 
+    const watchPayload = buildWatchPayload(row, alert);
+
     return res.status(200).json({
       success: true,
-      data: {
-        id: row.id,
-        patientId: row.patient_id,
-        sessionId: row.session_id,
-        heartRate: row.heart_rate,
-        spo2: row.spo2,
-        stressScore: row.stress_score,
-        recordedAt: row.recorded_at,
-        createdAt: row.created_at,
-        distressAlert: alert.distressAlert,
-        alertReason: alert.alertReason,
-      },
+      data: watchPayload,
     });
   } catch (error) {
     console.error("Get latest watch data error:", error);
@@ -229,18 +236,7 @@ router.get("/recent", async (req, res) => {
         row.stress_score
       );
 
-      return {
-        id: row.id,
-        patientId: row.patient_id,
-        sessionId: row.session_id,
-        heartRate: row.heart_rate,
-        spo2: row.spo2,
-        stressScore: row.stress_score,
-        recordedAt: row.recorded_at,
-        createdAt: row.created_at,
-        distressAlert: alert.distressAlert,
-        alertReason: alert.alertReason,
-      };
+      return buildWatchPayload(row, alert);
     });
 
     return res.status(200).json({
