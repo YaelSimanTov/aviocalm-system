@@ -199,4 +199,63 @@ router.get("/latest", async (req, res) => {
   }
 });
 
+// Get recent watch measurements
+router.get("/recent", async (req, res) => {
+  try {
+    const limit = Number(req.query.limit) || 20;
+
+    const result = await pool.query(
+      `
+      SELECT
+        id,
+        patient_id,
+        session_id,
+        heart_rate,
+        spo2,
+        stress_score,
+        recorded_at,
+        created_at
+      FROM watch_measurements
+      ORDER BY recorded_at DESC
+      LIMIT $1
+      `,
+      [limit]
+    );
+
+    const data = result.rows.map((row) => {
+      const alert = detectDistressAlert(
+        row.heart_rate,
+        row.spo2,
+        row.stress_score
+      );
+
+      return {
+        id: row.id,
+        patientId: row.patient_id,
+        sessionId: row.session_id,
+        heartRate: row.heart_rate,
+        spo2: row.spo2,
+        stressScore: row.stress_score,
+        recordedAt: row.recorded_at,
+        createdAt: row.created_at,
+        distressAlert: alert.distressAlert,
+        alertReason: alert.alertReason,
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: data.length,
+      data,
+    });
+  } catch (error) {
+    console.error("Get recent watch data error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error while fetching recent watch data",
+    });
+  }
+});
+
 module.exports = router;
