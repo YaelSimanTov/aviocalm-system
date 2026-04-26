@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+ import React, { useState, useEffect } from 'react';
 import './change-password.css';
 
 export const ChangePasswordForm = ({ onSubmit, isLoading, error, success, fieldErrors }) => {
@@ -8,6 +8,20 @@ export const ChangePasswordForm = ({ onSubmit, isLoading, error, success, fieldE
     confirmPassword: ''
   });
   const [validationErrors, setValidationErrors] = useState({});
+  const [showPasswords, setShowPasswords] = useState({
+    oldPassword: false,
+    newPassword: false,
+    confirmPassword: false
+  });
+
+  // Password requirements state
+  const [passwordRequirements, setPasswordRequirements] = useState({
+    length: false,
+    uppercase: false,
+    lowercase: false,
+    number: false,
+    special: false
+  });
 
   // Real-time validation for new password
   const validateNewPassword = (password) => {
@@ -25,8 +39,11 @@ export const ChangePasswordForm = ({ onSubmit, isLoading, error, success, fieldE
       errors.lowercase = 'Must include a lowercase letter.';
     }
     
-    if (!/[0-9]/.test(password) || !/[!@#$%]/.test(password)) {
-      errors.special = 'Must include a number and a special character.';
+    if (!/[0-9]/.test(password)) {
+      errors.special = 'Must include a number';
+    }
+    if (!/[!@#$%]/.test(password)) {
+      errors.special = 'Must include a special character';
     }
     
     return errors;
@@ -54,6 +71,15 @@ export const ChangePasswordForm = ({ onSubmit, isLoading, error, success, fieldE
         ...prev,
         newPassword: Object.keys(newPasswordErrors).length > 0 ? newPasswordErrors : ''
       }));
+      
+      // Update password requirements in real-time
+      setPasswordRequirements({
+        length: value.length >= 8,
+        uppercase: /[A-Z]/.test(value),
+        lowercase: /[a-z]/.test(value),
+        number: /[0-9]/.test(value),
+        special: /[!@#$%]/.test(value)
+      });
     }
     
     // Validate password match when confirm password changes
@@ -73,6 +99,13 @@ export const ChangePasswordForm = ({ onSubmit, isLoading, error, success, fieldE
         }));
       }
     }
+  };
+
+  const togglePasswordVisibility = (fieldName) => {
+    setShowPasswords(prev => ({
+      ...prev,
+      [fieldName]: !prev[fieldName]
+    }));
   };
 
   const validateForm = () => {
@@ -158,19 +191,37 @@ export const ChangePasswordForm = ({ onSubmit, isLoading, error, success, fieldE
           <label htmlFor="oldPassword" className="change-password__label">
             Old Password
           </label>
-          <input
-            id="oldPassword"
-            name="oldPassword"
-            type="password"
-            autoComplete="current-password"
-            required
-            className={`change-password__input ${
-              validationErrors.oldPassword || fieldErrors.oldPassword ? 'change-password__input--error' : ''
-            }`}
-            placeholder="Enter your current password"
-            value={formData.oldPassword}
-            onChange={handleChange}
-          />
+          <div className="change-password__input-wrapper">
+            <input
+              id="oldPassword"
+              name="oldPassword"
+              type={showPasswords.oldPassword ? "text" : "password"}
+              autoComplete="current-password"
+              required
+              className={`change-password__input ${
+                validationErrors.oldPassword || fieldErrors.oldPassword ? 'change-password__input--error' : ''
+              }`}
+              placeholder="Enter your current password"
+              value={formData.oldPassword}
+              onChange={handleChange}
+            />
+            <button
+              type="button"
+              className="change-password__visibility-toggle"
+              onClick={() => togglePasswordVisibility('oldPassword')}
+            >
+              {showPasswords.oldPassword ? (
+                <svg className="change-password__eye-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              ) : (
+                <svg className="change-password__eye-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                </svg>
+              )}
+            </button>
+          </div>
           {validationErrors.oldPassword || fieldErrors.oldPassword ? (
             <p className="change-password__validation-error">
               {fieldErrors.oldPassword || validationErrors.oldPassword}
@@ -183,19 +234,37 @@ export const ChangePasswordForm = ({ onSubmit, isLoading, error, success, fieldE
           <label htmlFor="newPassword" className="change-password__label">
             New Password
           </label>
-          <input
-            id="newPassword"
-            name="newPassword"
-            type="password"
-            autoComplete="new-password"
-            required
-            className={`change-password__input ${
-              validationErrors.newPassword ? 'change-password__input--error' : ''
-            }`}
-            placeholder="Enter your new password"
-            value={formData.newPassword}
-            onChange={handleChange}
-          />
+          <div className="change-password__input-wrapper">
+            <input
+              id="newPassword"
+              name="newPassword"
+              type={showPasswords.newPassword ? "text" : "password"}
+              autoComplete="new-password"
+              required
+              className={`change-password__input ${
+                validationErrors.newPassword ? 'change-password__input--error' : ''
+              }`}
+              placeholder="Enter your new password"
+              value={formData.newPassword}
+              onChange={handleChange}
+            />
+            <button
+              type="button"
+              className="change-password__visibility-toggle"
+              onClick={() => togglePasswordVisibility('newPassword')}
+            >
+              {showPasswords.newPassword ? (
+                <svg className="change-password__eye-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              ) : (
+                <svg className="change-password__eye-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                </svg>
+              )}
+            </button>
+          </div>
           {validationErrors.newPassword && (
             <p className="change-password__validation-error">
               {getErrorMessage(validationErrors.newPassword)}
@@ -208,19 +277,37 @@ export const ChangePasswordForm = ({ onSubmit, isLoading, error, success, fieldE
           <label htmlFor="confirmPassword" className="change-password__label">
             Confirm New Password
           </label>
-          <input
-            id="confirmPassword"
-            name="confirmPassword"
-            type="password"
-            autoComplete="new-password"
-            required
-            className={`change-password__input ${
-              validationErrors.confirmPassword ? 'change-password__input--error' : ''
-            }`}
-            placeholder="Confirm your new password"
-            value={formData.confirmPassword}
-            onChange={handleChange}
-          />
+          <div className="change-password__input-wrapper">
+            <input
+              id="confirmPassword"
+              name="confirmPassword"
+              type={showPasswords.confirmPassword ? "text" : "password"}
+              autoComplete="new-password"
+              required
+              className={`change-password__input ${
+                validationErrors.confirmPassword ? 'change-password__input--error' : ''
+              }`}
+              placeholder="Confirm your new password"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+            />
+            <button
+              type="button"
+              className="change-password__visibility-toggle"
+              onClick={() => togglePasswordVisibility('confirmPassword')}
+            >
+              {showPasswords.confirmPassword ? (
+                <svg className="change-password__eye-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              ) : (
+                <svg className="change-password__eye-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                </svg>
+              )}
+            </button>
+          </div>
           {(validationErrors.confirmPassword || fieldErrors.confirmPassword) && (
             <p className="change-password__validation-error">
               {validationErrors.confirmPassword || fieldErrors.confirmPassword}
@@ -228,14 +315,50 @@ export const ChangePasswordForm = ({ onSubmit, isLoading, error, success, fieldE
           )}
         </div>
 
-        {/* Password Requirements */}
+        {/* Dynamic Password Requirements */}
         <div className="change-password__requirements">
           <h4 className="change-password__requirements-title">Password Requirements:</h4>
           <ul className="change-password__requirements-list">
-            <li className="change-password__requirement">At least 8 characters long</li>
-            <li className="change-password__requirement">Contains uppercase letter (A-Z)</li>
-            <li className="change-password__requirement">Contains lowercase letter (a-z)</li>
-            <li className="change-password__requirement">Contains number and special character (!@#$%)</li>
+            <li className={`change-password__requirement ${passwordRequirements.length ? 'change-password__requirement--met' : ''}`}>
+              {passwordRequirements.length ? (
+                <svg className="change-password__check-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : null}
+              At least 8 characters long
+            </li>
+            <li className={`change-password__requirement ${passwordRequirements.uppercase ? 'change-password__requirement--met' : ''}`}>
+              {passwordRequirements.uppercase ? (
+                <svg className="change-password__check-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : null}
+              Contains uppercase letter (A-Z)
+            </li>
+            <li className={`change-password__requirement ${passwordRequirements.lowercase ? 'change-password__requirement--met' : ''}`}>
+              {passwordRequirements.lowercase ? (
+                <svg className="change-password__check-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : null}
+              Contains lowercase letter (a-z)
+            </li>
+            <li className={`change-password__requirement ${passwordRequirements.number ? 'change-password__requirement--met' : ''}`}>
+              {passwordRequirements.number ? (
+                <svg className="change-password__check-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : null}
+              Contains number (0-9)
+            </li>
+            <li className={`change-password__requirement ${passwordRequirements.special ? 'change-password__requirement--met' : ''}`}>
+              {passwordRequirements.special ? (
+                <svg className="change-password__check-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : null}
+              Contains special character (!@#$%)
+            </li>
           </ul>
         </div>
 
@@ -264,5 +387,6 @@ export const ChangePasswordForm = ({ onSubmit, isLoading, error, success, fieldE
     </div>
   );
 };
+ 
  
  

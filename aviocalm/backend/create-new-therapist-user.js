@@ -19,7 +19,7 @@ const createNewTherapistUser = async () => {
 
     console.log('Creating new therapist user...');
     console.log('Username: new_therapist');
-    console.log('Password: FirstTime123!');
+    console.log('Password: new_therapist');
     console.log('Role: Therapist');
     console.log('is_first_login: true');
 
