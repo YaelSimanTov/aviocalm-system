@@ -50,6 +50,57 @@
   @apply mt-1 text-sm text-red-600;
 }
 
+/* Input Wrapper for Eye Icon */
+.login-form__input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.login-form__input-wrapper .login-form__input {
+  padding-right: 2.5rem;
+}
+
+/* Visibility Toggle Button */
+.login-form__visibility-toggle {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  cursor: pointer;
+  color: #6b7280;
+  border-radius: 0.25rem;
+  transition: color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.login-form__visibility-toggle:hover {
+  color: #374151;
+}
+
+.login-form__eye-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  stroke-width: 2;
+}
+
+/* Ensure input focus states don't cover the icon */
+.login-form__input:focus {
+  z-index: 1;
+}
+
+/* Hide native browser password reveal icons */
+.login-form__input::-ms-reveal,
+.login-form__input::-ms-clear {
+  display: none;
+}
+
 .login-form__submit {
   @apply mt-6;
 }
