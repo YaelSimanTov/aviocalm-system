@@ -15,6 +15,13 @@ AvioCalm is a professional therapeutic platform for treating Aerophobia (fear of
 * **Security:** JWT for Role-Based Access Control (RBAC). Use Salt + Hash for passwords.
 * **Responses:** Standard JSON format: `{ "success": boolean, "data": any, "error": string }`.
 
+* **File Placement & Architecture Rules:**
+  * **Backend Source Code:** All core application code (such as routes, controllers, middleware, db configs, and `server.js`) MUST be placed inside the `backend/src/` directory. Do not place application code in the backend root.
+  * **Backend Scripts:** Any standalone utility, database setup, or manual testing scripts MUST be placed inside the `backend/scripts/` directory.
+  * **Documentation:** All markdown and architectural documentation MUST be placed inside the `backend/docs/` directory.
+  * **Frontend Source Code:** All React components, contexts, hooks, and pages MUST be placed appropriately within the `frontend/src/` hierarchy.
+  * **Global Rule:** Whenever you are tasked with creating a new file, you must first analyze this architectural structure and ensure the file is generated in the correct folder. Never dump files into the root directories unless it is a root-level configuration file (e.g., .env, package.json).
+
 ---
 
 ## Detailed Roadmap & User Stories
@@ -112,69 +119,92 @@ AvioCalm is a professional therapeutic platform for treating Aerophobia (fear of
 ---
 
 ### Epic 3: IoT & VR Integration
-**Goal:** Real-time data ingestion from the VR system and Smartwatch.
+**Goal:** Real-time ingestion of data from the VR system and Samsung smartwatch.
 
-##### User Story 3.1: Real-time Ingestion
-**As the System, I want to receive synchronized streaming data from the VR and Smartwatch, so that I can monitor the patient's exact anxiety level per room.**
+**User Story 3.1: Real-time Ingestion**
+As the system, I want to receive synchronized data from the VR and the smartwatch to build an accurate picture of the patient's anxiety level during the current session.
+**Acceptance Criteria:**
+* **BE:** Establish a Node.js WebSocket server (with Socket.io) running alongside the REST API (Express) on the same port, using separate event channels for VR and the smartwatch.
+* **BE:** Create a DTO for smartwatch data: Heart Rate (HR), Stress Score, and SpO2.
+* **BE:** Create a DTO for VR events based on Unity Enums: FlightState and LevelDiff, combined with a SessionID.
+* **BE:** Implement State Injection synchronization logic: The server stores the current VR state in memory (Global Scope) and automatically attaches it to every data packet arriving from the smartwatch.
+* **DB:** Use PostgreSQL with a relational schema. Create an `AnxietyProfiles` table for real-time data: LogID (PK), SessionID (FK), RecordedAt, VrState, Difficulty, HeartRate, StressScore, SpO2, and TherapistAction.
+* **FE:** Implement a `GlobalHeader` React component that listens to server events (socket.io-client) and displays real-time connectivity status for VR and the smartwatch. It must include logic to trigger a "Distress Alert" on the therapist's dashboard if an abnormal heart rate is detected.
 
-**Tasks:**
-- **BE:** Setup WebSocket Server or MQTT Broker for streaming data.
-- **BE:** Create DTOs to ingest Smartwatch data (HR, BP, GSR, SpO2).
-- **BE:** Create DTOs to ingest VR data (RoomID, SceneID, Timestamp).
-- **BE:** Map Smartwatch data to the current VR room based on Timestamps.
-- **DB:** Create AnxietyProfile table for raw data. Add a TherapistAction column to log if the therapist agreed/ignored AI alerts.
-- **DB:** Create SceneStressScores table for weighted scores per scene.
-- **FE:** Implement real-time device status indicators (Connectivity Monitoring) in the Header for the VR Headset and Smartwatch.
-* **[FE] Visual Highlight:** Sidebar shows active VR session state.
-
-#### User Story 3.2: Connectivity Management
-* **[FE] Global Header:** Live connectivity status icons for VR Headset and Smartwatch.
-* **[FE] Status Indicators:** Green: Connected / Red: Offline.
+**User Story 3.2: Data Aggregation & Clinical Scoring**
+**Goal:** Process raw sensor data into clinical insights, factoring in scene difficulty.
+As a therapist, I want a weighted anxiety score that separates different VR scenes and their difficulty levels (Easy, Medium, Hard), so I can compare patient responses and measure stress management progress.
+**Tasks / Acceptance Criteria:**
+* **DB:** Create a `SceneStressScores` table in PostgreSQL: ScoreID (PK), SessionID (FK), PatientID (FK), VrState, Difficulty, AvgHeartRate, PeakStressScore, CalculatedWeightedScore, and RecordedAt.
+* **BE:** Aggregation Mechanism: A server trigger that detects a change in VR status and aggregates all completed `AnxietyProfiles` records associated with that scene and difficulty.
+* **BE:** Weighted Scoring Algorithm: Develop a service calculating a final score (Engineering Note: Weighting varies by difficulty, e.g., leniency for "Hard"). Save the result with the difficulty tag.
+* **BE/DB:** Session Integrity: Ensure every summary row is correctly linked to the SessionID and PatientID for historical comparison.
 
 ---
 
-### Epic 4: AI Analysis & Safety
-**Goal:** Metric analysis, emergency prediction, and treatment path adaptation.
+### Epic 4: Data Analysis & Safety Engine
+**Goal:** Analyze metrics, detect statistical anomalies, and adjust treatment in the clinical environment.
 
-##### User Story 4.1: Real-Time Distress Detection
-**As a therapist, I want the system to automatically alert me if the patient is in distress, so that I can stop the session immediately.**
-
+**User Story 4.1: The Safety Brakes (Reactive Engine)**
+As a therapist, I want the system to automatically and immediately halt the VR if medical or physiological red lines are crossed, preventing physical harm or emotional flooding.
 **Tasks:**
-- **DB:** Create MedicalNorms table with age/health-based thresholds.
-- **BE/AI:** Develop a Rule Engine to compare samples against MedicalNorms.
-- **BE:** Implement EmergencyStop signal broadcast. When a panic trend is predicted (LSTM) or detected (Rule Engine), immediately trigger an interrupt command to the VR engine.
-- **FE:** Global Panic Alert: Flash the App Header red and show an 'Emergency' pop-up across ALL pages for the active therapist.
-- **BE/ML:** Train a real-time 'Stress Index Model' based on HRV, GSR, and respiration.
-- **BE/AI:** Implement Time Series Forecasting (LSTM) to predict panic attacks before they occur.
+* **DB:** `MedicalNorms` Table: Age_Group, HR_Max, HR_Min, SpO2_Min, Stress_Max, Duration_Threshold (seconds), and Delta_HR_Percent.
+* **DB:** `PatientBaselines` Table: Structure to save baseline data (average HR/stress) sampled during the first 3 minutes of calibration.
+* **BE (Rule Engine):** Implement a decision engine checking three channels per sample:
+  1. **Absolute Safety Channel:** Stop if SpO2 < SpO2_Min OR HR > HR_Max for Duration_Threshold.
+  2. **Relative Statistical Channel:** Stop if HR crosses the baseline by Delta_HR_Percent OR crosses a personal statistical threshold (e.g., Z-Score) for the Duration.
+  3. **Combined Panic Channel:** Stop if Stress Score > Stress_Max PLUS a consistent rise in HR.
+* **BE:** `EmergencyStop` Signal: Endpoint to send a TERMINATE command via WebSocket.
+* **Data Analysis:** Anomaly Filtering: Implement noise filtering (e.g., Moving Average) to ensure stops aren't triggered by abrupt watch movements.
+* **FE:** Manual Override: A prominent red "Stop Simulation" button in the Header for manual therapist intervention.
+* **FE:** Display the personal baseline vs. current metrics on the Dashboard for visual context during an emergency stop.
 
-##### User Story 4.2: AI Prediction for Stage Progression
-**As a therapist, I want an AI recommendation on whether to advance the VR stage, so that I pace the treatment safely.**
-
+**User Story 4.2: The Proactive Radar (Predictive Engine)**
+As a therapist, I want early warnings regarding rising stress trends so I can prepare to intervene or pause the session before the patient collapses.
 **Tasks:**
-- **BE/ML:** Train a classification model (Random Forest) based on current metrics and history.
-- **BE:** Execute the model at the end of each VR Stage.
-- **FE:** Display progression recommendation. Add Feedback Loop buttons (Agree/Disagree) to the UI to capture therapist input and improve model accuracy.
-- **BE/ML:** Use K-Means clustering to recommend the best treatment path based on similar patient profiles.
+* **Data Analysis (Trend Forecasting):**
+  * *Statistical Trend & Slope Analysis:* Function calculating the rate of change (derivative/slope) of HR and stress over the last 15 seconds.
+  * *Prediction Model:* Logic determining if the patient is "on track" to cross HR_Max shortly, based on the slope.
+* **BE:** Warning Dispatcher: Service listening to trend model results and sending a "Warning" signal to the UI if a consistent rise is detected.
+* **FE:** Level 1 Alert (Warning): Yellow indication in the Header: "Abnormal rise in stress metrics - monitoring recommended".
+* **FE:** Trend Indicator arrow next to the metric showing stable, rising, or falling.
+
+**User Story 4.3: Progression Heuristics**
+As a therapist, I want a data-driven recommendation on whether the patient is ready for higher exposure.
+**Tasks:**
+* **BE Logic (Weighted Scoring):** Algorithm analyzing the Recovery Rate (return to Baseline) at the end of each stage.
+* **BE Logic (Patient Profiling):** Statistical classification mapping the patient to a behavioral profile (e.g., "fast responder").
+* **FE UI (Recommendation):** Display a "Recommendation Card" at the end of a VR room with traffic-light colors (Green: Proceed / Yellow: Repeat stage).
+* **FE (Feedback Loop):** Add "Agree/Disagree" buttons next to the recommendation to collect professional feedback (Human in the loop).
+* **DB:** Save decisions (recommendation vs. actual action) in a `TreatmentDecisions` table.
 
 ---
 
 ### Epic 5: Reporting & Analytics
-**Goal:** Professional clinical reporting and business intelligence for therapeutic outcomes.
 
-#### Task 5.1: Patient Insight Dashboard
-- **FE:** Implement a multi-line Chart (Chart.js) showing Heart Rate, SpO2, and VR Scene transitions on a shared timeline.
-- **FE:** Add visual markers for AI-triggered alerts (from US 4.1) on the chart.
-- **AI:** Integrate the Insight Generator to produce text summaries. Include the therapist's historical feedback (Agree/Disagree) to contextualize AI suggestions.
+**User Story 5.1: Patient Analytics & XAI**
+**Tasks:**
+* **FE:** Integration with a charting library (D3.js / Chart.js).
+* **FE:** Multi-axis line chart displaying HR and Stress/SpO2 over time, with Annotations when VR rooms change.
+* **BE:** Fetch data from `AnxietyProfile` and perform statistical aggregation by scene.
+* **BE Rule-Engine (Insight Generator):** Engine generating text-based insights based on statistics (e.g., "Note: Patient shows high sensitivity during the landing phase").
+* **FE:** Display "System Conclusions" as text.
+* **FE (Explainability Markers):** Add Markers on the chart showing when the system crossed statistical thresholds and sent alerts, for full clinical transparency.
+* **BE Logic:** Integrate Feedback Loop - note if the therapist agreed with similar insights previously.
 
-#### Task 5.2: Owner's Command Center (Global Stats)
-- **Access:** Strictly restricted to Owner Role in the Sidebar/Admin section.
-- **BE:** Calculate 'Treatment Success Rate' (Anxiety reduction trends across all patients).
-- **FE:** Display high-level KPIs: Active Patients, Active Therapists, and Phobia Distribution.
+**User Story 5.2: Global Stats (Owner Dashboard)**
+**Tasks:**
+* **FE (Access Control):** Restricted page for Owners only (Admin Sidebar).
+* **BE:** Aggregation queries for average anxiety reduction across session series.
+* **FE:** Management screen showing total patients, phobia distribution, and PDF export option.
+* **BE Aggregation:** Calculate a "Treatment Success Rate" metric.
 
-#### Task 5.3: Professional PDF Export (Updated)
-- **FE:** Place the 'Export Summary' button inside the **Treatment History tab** of the Patient Profile page (US 2.3) and the post-session summary screen.
-- **BE:** PDF must include patient metadata, session graphs, and AI-generated clinical conclusions.
-- **Security:** Add a timestamp and therapist name to the PDF header for clinical auditing.
+**User Story 5.3: Treatment PDF Report**
+**Tasks:**
+* **BE:** Endpoint for a PDF generator pulling metrics, durations, and insights.
+* **BE Content:** PDF Structure: Title, AvioCalm logo, patient details, metrics table, and text summary.
+* **Security:** Watermark with therapist name and date to prevent forgery.
+* **FE:** "Download PDF" button in the patient's "Treatment History" tab.
 
 ---
 

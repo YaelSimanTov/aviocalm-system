@@ -1,5 +1,5 @@
 const bcrypt = require('bcrypt');
-const pool = require('./config/db');
+const pool = require('../src/config/db');
 
 async function createAdmin() {
   try {

@@ -73,20 +73,32 @@ CREATE TABLE medical_norms (
 );
 
 -- Anxiety Profile Table (Epic 3.1)
-CREATE TABLE anxiety_profile (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    patient_id UUID NOT NULL REFERENCES patients(id),
-    session_id UUID NOT NULL,
-    timestamp TIMESTAMP NOT NULL,
-    heart_rate INTEGER,
-    blood_pressure_systolic INTEGER,
-    blood_pressure_diastolic INTEGER,
-    gsr DECIMAL(10,4),
-    spo2 DECIMAL(5,2),
-    respiration_rate DECIMAL(8,2),
-    stress_level DECIMAL(5,2),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+
+-- CREATE TABLE "anxiety_profiles" (
+--     "LogID" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+--     "SessionID" UUID NOT NULL,
+--     "RecordedAt" TIMESTAMP NOT NULL,
+--     "VrState" VARCHAR(50) NOT NULL,
+--     "Difficulty" VARCHAR(50) NOT NULL,
+--     "HeartRate" INTEGER,
+--     "StressScore" INTEGER,
+--     "SpO2" INTEGER,
+--     "TherapistAction" VARCHAR(50) DEFAULT 'None'
+-- );
+-- CREATE TABLE anxiety_profile (
+--     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+--     patient_id UUID NOT NULL REFERENCES patients(id),
+--     session_id UUID NOT NULL,
+--     timestamp TIMESTAMP NOT NULL,
+--     heart_rate INTEGER,
+--     blood_pressure_systolic INTEGER,
+--     blood_pressure_diastolic INTEGER,
+--     gsr DECIMAL(10,4),
+--     spo2 DECIMAL(5,2),
+--     respiration_rate DECIMAL(8,2),
+--     stress_level DECIMAL(5,2),
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- );
 
 -- Scene Stress Scores Table (Epic 3.1)
 CREATE TABLE scene_stress_scores (
@@ -140,3 +152,5 @@ $$ language 'plpgsql';
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_patients_updated_at BEFORE UPDATE ON patients FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_appointments_updated_at BEFORE UPDATE ON appointments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+
