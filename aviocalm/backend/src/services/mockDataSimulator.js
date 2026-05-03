@@ -4,12 +4,20 @@
  * Centralizes all mock data logic for easy cleanup when real hardware arrives
  */
 
+const { processSceneCompletion } = require('./clinicalScoringService');
 
 class MockDataSimulator {
   constructor(io) {
     this.isRunning = false;
     this.simulationInterval = null;
     this.io = io;
+    
+    // Scene tracking for clinical scoring
+    this.currentSceneMetrics = [];
+    this.currentVrState = 'Boarding';
+    this.currentDifficulty = 'Easy';
+    this.sessionId = `session_${Date.now()}`;
+    this.patientId = '550e8400-e29b-41d4-a716-446655440000'; // Mock patient ID
     
     // Baseline values for realistic simulation
     this.baseline = {
@@ -91,6 +99,10 @@ class MockDataSimulator {
     
     // Change VR state periodically for realism
     if (this.phaseTimer % 30 === 0) { // Every 30 seconds
+      const previousVrState = this.current.vrState;
+      const previousDifficulty = this.current.difficulty;
+      
+      // Update VR state
       this.currentStateIndex = (this.currentStateIndex + 1) % this.vrStates.length;
       this.current.vrState = this.vrStates[this.currentStateIndex];
       
@@ -98,6 +110,11 @@ class MockDataSimulator {
       if (Math.random() < 0.3) {
         this.currentDifficultyIndex = Math.min(this.currentDifficultyIndex + 1, this.difficulties.length - 1);
         this.current.difficulty = this.difficulties[this.currentDifficultyIndex];
+      }
+      
+      // Trigger clinical scoring for completed scene
+      if (this.currentSceneMetrics.length > 0 && previousVrState !== this.current.vrState) {
+        this.processCompletedScene(previousVrState, previousDifficulty);
       }
     }
     
@@ -136,6 +153,41 @@ class MockDataSimulator {
     }
     
     console.log(`[MOCK SIMULATOR] Generated: HR=${mockData.vitals.heartRate} | Stress=${mockData.vitals.stressScore} | SpO2=${mockData.vitals.spo2}% | State=${mockData.vrState}`);
+    
+    // Add current metrics to scene tracking
+    this.currentSceneMetrics.push({
+      timestamp: mockData.timestamp,
+      heartRate: mockData.vitals.heartRate,
+      stressScore: mockData.vitals.stressScore,
+      spo2: mockData.vitals.spo2
+    });
+  }
+
+  /**
+   * Process completed scene and trigger clinical scoring
+   * @param {string} completedVrState - VR state that just completed
+   * @param {string} completedDifficulty - Difficulty level of completed scene
+   */
+  async processCompletedScene(completedVrState, completedDifficulty) {
+    try {
+      console.log(`[MOCK SIMULATOR] Processing completed scene: ${completedVrState} with ${this.currentSceneMetrics.length} data points`);
+      
+      // Trigger clinical scoring service
+      await processSceneCompletion(
+        this.currentSceneMetrics,
+        this.sessionId,
+        this.patientId,
+        completedVrState,
+        completedDifficulty
+      );
+      
+      // Clear current scene metrics for next scene
+      this.currentSceneMetrics = [];
+      
+      console.log(`[MOCK SIMULATOR] Successfully processed scene: ${completedVrState}`);
+    } catch (error) {
+      console.error(`[MOCK SIMULATOR] Error processing completed scene:`, error);
+    }
   }
 
   /**

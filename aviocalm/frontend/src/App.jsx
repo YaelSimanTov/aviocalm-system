@@ -9,6 +9,7 @@ import './index.css';
 import AddPatientForm from './components/add-patient-form/add-patient-form';
 import PatientProfile from './components/patient-profile/patient-profile';
 import ActiveMonitor from './components/active-monitor/ActiveMonitor';
+import PatientInsights from './components/analytics/PatientInsights';
 
 // Placeholder components for routes that don't exist yet
 const GlobalStats = () => <div className="p-8"><h1 className="text-2xl font-bold">Global Stats</h1><p>Coming soon...</p></div>;
@@ -147,6 +148,14 @@ function App() {
             </ProtectedRoute>
           }>
             <Route index element={<ActiveMonitor />} />
+          </Route>
+
+          <Route path="/analytics/patient-insights" element={
+            <ProtectedRoute>
+              <AuthenticatedLayout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<PatientInsights />} />
           </Route>
 
           <Route path="/admin/global-stats" element={

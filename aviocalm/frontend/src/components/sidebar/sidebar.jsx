@@ -144,7 +144,7 @@ export const Sidebar = ({ onToggleCollapse }) => {
           {expandedGroups.analytics && (
             <div className="sidebar__group-items">
               <Link 
-                to="/stress-trends" 
+                to="/analytics/patient-insights" 
                 className="sidebar__item"
               >
                 <div className="sidebar__item-content">

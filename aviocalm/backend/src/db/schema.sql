@@ -72,44 +72,30 @@ CREATE TABLE medical_norms (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Anxiety Profile Table (Epic 3.1)
-
--- CREATE TABLE "anxiety_profiles" (
---     "LogID" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
---     "SessionID" UUID NOT NULL,
---     "RecordedAt" TIMESTAMP NOT NULL,
---     "VrState" VARCHAR(50) NOT NULL,
---     "Difficulty" VARCHAR(50) NOT NULL,
---     "HeartRate" INTEGER,
---     "StressScore" INTEGER,
---     "SpO2" INTEGER,
---     "TherapistAction" VARCHAR(50) DEFAULT 'None'
--- );
--- CREATE TABLE anxiety_profile (
---     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
---     patient_id UUID NOT NULL REFERENCES patients(id),
---     session_id UUID NOT NULL,
---     timestamp TIMESTAMP NOT NULL,
---     heart_rate INTEGER,
---     blood_pressure_systolic INTEGER,
---     blood_pressure_diastolic INTEGER,
---     gsr DECIMAL(10,4),
---     spo2 DECIMAL(5,2),
---     respiration_rate DECIMAL(8,2),
---     stress_level DECIMAL(5,2),
---     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
--- );
+-- Anxiety Profiles Table (Epic 3.1)
+CREATE TABLE anxiety_profiles (
+    LogID UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    SessionID UUID NOT NULL,
+    RecordedAt TIMESTAMP NOT NULL,
+    VrState VARCHAR(50) NOT NULL,
+    Difficulty VARCHAR(50) NOT NULL,
+    HeartRate INTEGER,
+    StressScore INTEGER,
+    SpO2 INTEGER,
+    TherapistAction VARCHAR(50) DEFAULT 'None'
+);
 
 -- Scene Stress Scores Table (Epic 3.1)
 CREATE TABLE scene_stress_scores (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    patient_id UUID NOT NULL REFERENCES patients(id),
-    session_id UUID NOT NULL,
-    scene_id VARCHAR(50) NOT NULL,
-    weighted_stress_score DECIMAL(5,2) NOT NULL,
-    duration_seconds INTEGER NOT NULL,
-    peak_stress_level DECIMAL(5,2),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ScoreID UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    SessionID UUID NOT NULL,
+    PatientID UUID NOT NULL REFERENCES patients(id),
+    VrState VARCHAR(50) NOT NULL,
+    Difficulty VARCHAR(50) NOT NULL,
+    AvgHeartRate DECIMAL(5,2) NOT NULL,
+    PeakStressScore DECIMAL(5,2) NOT NULL,
+    CalculatedWeightedScore DECIMAL(5,2) NOT NULL,
+    RecordedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create indexes for better performance
@@ -119,11 +105,11 @@ CREATE INDEX idx_patients_therapist ON patients(therapist_id);
 CREATE INDEX idx_appointments_patient ON appointments(patient_id);
 CREATE INDEX idx_appointments_therapist ON appointments(therapist_id);
 CREATE INDEX idx_appointments_date ON appointments(scheduled_date);
-CREATE INDEX idx_anxiety_profile_patient ON anxiety_profile(patient_id);
-CREATE INDEX idx_anxiety_profile_session ON anxiety_profile(session_id);
-CREATE INDEX idx_anxiety_profile_timestamp ON anxiety_profile(timestamp);
-CREATE INDEX idx_scene_stress_patient ON scene_stress_scores(patient_id);
-CREATE INDEX idx_scene_stress_session ON scene_stress_scores(session_id);
+CREATE INDEX idx_anxiety_profiles_session ON anxiety_profiles(SessionID);
+CREATE INDEX idx_anxiety_profiles_timestamp ON anxiety_profiles(RecordedAt);
+CREATE INDEX idx_scene_stress_scores_patient ON scene_stress_scores(PatientID);
+CREATE INDEX idx_scene_stress_scores_session ON scene_stress_scores(SessionID);
+CREATE INDEX idx_scene_stress_scores_vrstate ON scene_stress_scores(VrState);
 
 -- Insert default owner user (admin / Admin123!)
 -- Password: Admin123! (meets requirements: 8+ chars, uppercase, lowercase, special, number)

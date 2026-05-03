@@ -137,7 +137,7 @@ const ActiveMonitor = () => {
     }
   };
 
-  // WebSocket connection
+  // WebSocket connection - only runs once on component mount
   useEffect(() => {
     // Try to connect to real WebSocket
     socketRef.current = io('http://localhost:5000');
@@ -153,22 +153,23 @@ const ActiveMonitor = () => {
     });
 
     socketRef.current.on('live_metrics', (data) => {
-      setPreviousMetrics(metrics);
-      // Map backend payload structure to frontend expected structure
-      const mappedData = {
-        hr: data.vitals?.heartRate || 0,
-        spo2: data.vitals?.spo2 || 0,
-        stressScore: data.vitals?.stressScore || 0,
-        vrState: data.vrState || 'Unknown',
-        timestamp: data.timestamp,
-        sessionId: data.sessionId,
-        isWarning: data.isWarning || false,
-        isEmergency: data.isEmergency || false
-      };
-      setMetrics(mappedData);
-      setDataHistory(prev => {
-        const newHistory = [...prev, mappedData];
-        return newHistory.slice(-60); // Keep last 60 data points
+      setPreviousMetrics(prevMetrics => {
+        const mappedData = {
+          hr: data.vitals?.heartRate || 0,
+          spo2: data.vitals?.spo2 || 0,
+          stressScore: data.vitals?.stressScore || 0,
+          vrState: data.vrState || 'Unknown',
+          timestamp: data.timestamp,
+          sessionId: data.sessionId,
+          isWarning: data.isWarning || false,
+          isEmergency: data.isEmergency || false
+        };
+        setMetrics(mappedData);
+        setDataHistory(prev => {
+          const newHistory = [...prev, mappedData];
+          return newHistory.slice(-60); // Keep last 60 data points
+        });
+        return prevMetrics;
       });
     });
 
@@ -178,7 +179,7 @@ const ActiveMonitor = () => {
         socketRef.current.disconnect();
       }
     };
-  }, [isConnected, metrics]);
+  }, []); // Empty dependency array - only runs once on mount
 
   // Calculate trend indicators with visual SVG arrows
   const getTrendIndicator = (current, previous) => {
