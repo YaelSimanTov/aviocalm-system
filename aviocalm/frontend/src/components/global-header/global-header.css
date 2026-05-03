@@ -1,12 +1,12 @@
 .global-header {
-  position: fixed;
+  position: sticky;
   top: 0;
-  left: 280px; /* Account for sidebar width */
+  left: 240px; /* Account for new sidebar width */
   right: 0;
   height: 70px;
   background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
   border-bottom: 1px solid #475569;
-  z-index: 999;
+  z-index: 50;
   transition: all 0.3s ease;
 }
 

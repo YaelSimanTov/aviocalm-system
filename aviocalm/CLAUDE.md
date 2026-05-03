@@ -130,6 +130,7 @@ As the system, I want to receive synchronized data from the VR and the smartwatc
 * **BE:** Implement State Injection synchronization logic: The server stores the current VR state in memory (Global Scope) and automatically attaches it to every data packet arriving from the smartwatch.
 * **DB:** Use PostgreSQL with a relational schema. Create an `AnxietyProfiles` table for real-time data: LogID (PK), SessionID (FK), RecordedAt, VrState, Difficulty, HeartRate, StressScore, SpO2, and TherapistAction.
 * **FE:** Implement a `GlobalHeader` React component that listens to server events (socket.io-client) and displays real-time connectivity status for VR and the smartwatch. It must include logic to trigger a "Distress Alert" on the therapist's dashboard if an abnormal heart rate is detected.
+* **UX (UI Location & Navigation):** Connectivity status and distress alerts will be located in the Global Header. Live data display (charts) will be located in the 🥽 Live Session -> Active Monitor page.
 
 **User Story 3.2: Data Aggregation & Clinical Scoring**
 **Goal:** Process raw sensor data into clinical insights, factoring in scene difficulty.
@@ -139,6 +140,7 @@ As a therapist, I want a weighted anxiety score that separates different VR scen
 * **BE:** Aggregation Mechanism: A server trigger that detects a change in VR status and aggregates all completed `AnxietyProfiles` records associated with that scene and difficulty.
 * **BE:** Weighted Scoring Algorithm: Develop a service calculating a final score (Engineering Note: Weighting varies by difficulty, e.g., leniency for "Hard"). Save the result with the difficulty tag.
 * **BE/DB:** Session Integrity: Ensure every summary row is correctly linked to the SessionID and PatientID for historical comparison.
+* **UX (UI Location & Navigation):** Tables and charts displaying weighted scores and historical comparisons will be shown under the 📊 Analytics -> Patient Insights page.
 
 ---
 
@@ -151,23 +153,25 @@ As a therapist, I want the system to automatically and immediately halt the VR i
 * **DB:** `MedicalNorms` Table: Age_Group, HR_Max, HR_Min, SpO2_Min, Stress_Max, Duration_Threshold (seconds), and Delta_HR_Percent.
 * **DB:** `PatientBaselines` Table: Structure to save baseline data (average HR/stress) sampled during the first 3 minutes of calibration.
 * **BE (Rule Engine):** Implement a decision engine checking three channels per sample:
-  1. **Absolute Safety Channel:** Stop if SpO2 < SpO2_Min OR HR > HR_Max for Duration_Threshold.
-  2. **Relative Statistical Channel:** Stop if HR crosses the baseline by Delta_HR_Percent OR crosses a personal statistical threshold (e.g., Z-Score) for the Duration.
-  3. **Combined Panic Channel:** Stop if Stress Score > Stress_Max PLUS a consistent rise in HR.
+  1. Absolute Safety Channel: Stop if SpO2 < SpO2_Min OR HR > HR_Max for Duration_Threshold.
+  2. Relative Statistical Channel: Stop if HR crosses the baseline by Delta_HR_Percent OR crosses a personal statistical threshold (e.g., Z-Score) for the Duration.
+  3. Combined Panic Channel: Stop if Stress Score > Stress_Max PLUS a consistent rise in HR.
 * **BE:** `EmergencyStop` Signal: Endpoint to send a TERMINATE command via WebSocket.
 * **Data Analysis:** Anomaly Filtering: Implement noise filtering (e.g., Moving Average) to ensure stops aren't triggered by abrupt watch movements.
 * **FE:** Manual Override: A prominent red "Stop Simulation" button in the Header for manual therapist intervention.
 * **FE:** Display the personal baseline vs. current metrics on the Dashboard for visual context during an emergency stop.
+* **UX (UI Location & Navigation):** The Panic State flashing and Manual Override button will be located in the Global Header. The Baseline vs. current metrics display will be located in the 🥽 Live Session -> Active Monitor page.
 
 **User Story 4.2: The Proactive Radar (Predictive Engine)**
 As a therapist, I want early warnings regarding rising stress trends so I can prepare to intervene or pause the session before the patient collapses.
 **Tasks:**
 * **Data Analysis (Trend Forecasting):**
-  * *Statistical Trend & Slope Analysis:* Function calculating the rate of change (derivative/slope) of HR and stress over the last 15 seconds.
-  * *Prediction Model:* Logic determining if the patient is "on track" to cross HR_Max shortly, based on the slope.
+  * Statistical Trend & Slope Analysis: Function calculating the rate of change (derivative/slope) of HR and stress over the last 15 seconds.
+  * Prediction Model: Logic determining if the patient is "on track" to cross HR_Max shortly, based on the slope.
 * **BE:** Warning Dispatcher: Service listening to trend model results and sending a "Warning" signal to the UI if a consistent rise is detected.
 * **FE:** Level 1 Alert (Warning): Yellow indication in the Header: "Abnormal rise in stress metrics - monitoring recommended".
 * **FE:** Trend Indicator arrow next to the metric showing stable, rising, or falling.
+* **UX (UI Location & Navigation):** The Level 1 Alert will pop up in the Global Header. The Trend Indicator arrow will be displayed next to the metrics on the 🥽 Live Session -> Active Monitor page.
 
 **User Story 4.3: Progression Heuristics**
 As a therapist, I want a data-driven recommendation on whether the patient is ready for higher exposure.
@@ -177,6 +181,7 @@ As a therapist, I want a data-driven recommendation on whether the patient is re
 * **FE UI (Recommendation):** Display a "Recommendation Card" at the end of a VR room with traffic-light colors (Green: Proceed / Yellow: Repeat stage).
 * **FE (Feedback Loop):** Add "Agree/Disagree" buttons next to the recommendation to collect professional feedback (Human in the loop).
 * **DB:** Save decisions (recommendation vs. actual action) in a `TreatmentDecisions` table.
+* **UX (UI Location & Navigation):** The Recommendation card and feedback buttons (Agree/Disagree) will be located in the 🥽 Live Session -> AI Insights sub-page.
 
 ---
 

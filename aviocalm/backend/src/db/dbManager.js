@@ -16,12 +16,13 @@ const pool = new Pool({
 async function insertAnxietyProfile(record) {
     const query = `
         INSERT INTO "anxiety_profiles" 
-        ("SessionID", "RecordedAt", "VrState", "Difficulty", "HeartRate", "StressScore", "SpO2", "TherapistAction")
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ("patient_id", "session_id", "recorded_at", "vr_state", "difficulty", "heart_rate", "stress_score", "spo2", "therapist_action")
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     `;
     
     // Mapping the object fields to the query parameters
     const values = [
+        record.patientId || 'unknown', // Use provided patientId or default to 'unknown'
         record.sessionId,
         record.timestamp,
         record.vrState,
@@ -29,7 +30,7 @@ async function insertAnxietyProfile(record) {
         record.vitals.heartRate,
         record.vitals.stressScore,
         record.vitals.spo2,
-        record.therapistAction
+        record.therapistAction || 'None'
     ];
 
     try {

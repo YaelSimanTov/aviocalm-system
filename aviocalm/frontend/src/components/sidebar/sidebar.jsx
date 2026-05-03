@@ -51,9 +51,6 @@ export const Sidebar = ({ onToggleCollapse }) => {
         >
           {isExpanded ? <X className="sidebar__toggle-icon" /> : <Menu className="sidebar__toggle-icon" />}
         </button>
-        <div className="sidebar__logo">
-          <span className="sidebar__logo-text">AC</span>
-        </div>
       </div>
 
       <nav className="sidebar__nav">

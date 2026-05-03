@@ -1,4 +1,4 @@
- 
+
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
@@ -7,9 +7,6 @@ require('dotenv').config();
 
 // Database manager for saving IoT/VR data
 const { insertAnxietyProfile } = require('./db/dbManager');
-
-// Mock data simulator for centralized mock data generation
-const { initializeMockSimulator, startMockSimulation, stopMockSimulation, getMockSimulationStatus } = require('./services/mockDataSimulator');
 
 // Route imports
 const authRoutes = require('./routes/auth-routes');
@@ -43,7 +40,6 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/owner', ownerRoutes);
 app.use('/api/patients', patientsRoutes);
-// app.use("/api/watch", watchRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -80,26 +76,8 @@ const LevelDiff = {
 let currentVrState = 'Unknown'; 
 let currentDifficulty = LevelDiff.NONE;
 
-// ==========================================
-// Mock Data Generator for ActiveMonitor Testing
-// ==========================================
-
-// Safety thresholds (Epic 4.1 - Safety Brakes)
-const SAFETY_THRESHOLDS = {
-    HR_WARNING: 100,      // Warning threshold for Heart Rate
-    HR_EMERGENCY: 120,    // Emergency threshold for Heart Rate
-    STRESS_EMERGENCY: 80, // Emergency threshold for Stress Score
-    SPO2_MIN: 90          // Minimum acceptable SpO2 level
-};
-
 io.on('connection', (socket) => {
     console.log(`[CONNECTION] New client connected with ID: ${socket.id}`);
-    
-    // Initialize mock simulator with io instance
-    initializeMockSimulator(io);
-    
-    // Start centralized mock data simulation
-    startMockSimulation();
 
     // CHANNEL 1: Listening ONLY to the VR Headset (Unity)
     socket.on('vr_system_log', (logMessage) => {
@@ -154,29 +132,6 @@ io.on('connection', (socket) => {
 
         // Save directly to the PostgreSQL database asynchronously
         await insertAnxietyProfile(syncedPatientRecord);
-    });
-
-    // Handle emergency stop requests from frontend
-    socket.on('emergency_stop', (data) => {
-        console.log(`[EMERGENCY] Manual emergency stop triggered by therapist: ${data.timestamp}`);
-        io.emit('EMERGENCY_STOP', {
-            timestamp: new Date().toISOString(),
-            reason: 'Manual Therapist Override',
-            values: { hr: currentHr, stress: currentStress }
-        });
-    });
-
-    // Handle progression feedback from therapist
-    socket.on('progression_feedback', (data) => {
-        console.log(`[FEEDBACK] Therapist ${data.agreed ? 'agreed' : 'disagreed'} with system recommendation: ${data.timestamp}`);
-        // Reset simulation for next scene
-        if (data.agreed) {
-            currentHr = BASELINE_HR;
-            currentStress = BASELINE_STRESS;
-            currentSpo2 = BASELINE_SPO2;
-            simulationTime = 0;
-            console.log(`[SIMULATION] Reset for next VR scene`);
-        }
     });
 
     socket.on('disconnect', () => {
