@@ -107,17 +107,17 @@ function calculateSummaryStats(insights) {
   }
 
   // Calculate averages
-  const avgWeightedScore = insights.reduce((sum, record) => sum + record.CalculatedWeightedScore, 0) / insights.length;
-  const avgHeartRate = insights.reduce((sum, record) => sum + record.AvgHeartRate, 0) / insights.length;
-  const avgPeakStress = insights.reduce((sum, record) => sum + record.PeakStressScore, 0) / insights.length;
+  const avgWeightedScore = insights.reduce((sum, record) => sum + record.calculated_weighted_score, 0) / insights.length;
+  const avgHeartRate = insights.reduce((sum, record) => sum + record.avg_heart_rate, 0) / insights.length;
+  const avgPeakStress = insights.reduce((sum, record) => sum + record.peak_stress_score, 0) / insights.length;
 
   // Find most challenging VR state (highest average weighted score)
   const vrStateStats = {};
   insights.forEach(record => {
-    if (!vrStateStats[record.VrState]) {
-      vrStateStats[record.VrState] = [];
+    if (!vrStateStats[record.vr_state]) {
+      vrStateStats[record.vr_state] = [];
     }
-    vrStateStats[record.VrState].push(record.CalculatedWeightedScore);
+    vrStateStats[record.vr_state].push(record.calculated_weighted_score);
   });
 
   let mostChallengingVrState = 'N/A';
@@ -136,8 +136,8 @@ function calculateSummaryStats(insights) {
   const firstHalf = insights.slice(0, midpoint);
   const secondHalf = insights.slice(midpoint);
   
-  const firstHalfAvg = firstHalf.reduce((sum, record) => sum + record.CalculatedWeightedScore, 0) / firstHalf.length;
-  const secondHalfAvg = secondHalf.reduce((sum, record) => sum + record.CalculatedWeightedScore, 0) / secondHalf.length;
+  const firstHalfAvg = firstHalf.reduce((sum, record) => sum + record.calculated_weighted_score, 0) / firstHalf.length;
+  const secondHalfAvg = secondHalf.reduce((sum, record) => sum + record.calculated_weighted_score, 0) / secondHalf.length;
   
   let improvementTrend = 'stable';
   if (secondHalfAvg < firstHalfAvg - 5) {

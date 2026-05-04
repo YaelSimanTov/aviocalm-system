@@ -61,6 +61,7 @@ CREATE TABLE appointments (
 -- Anxiety Profiles Table (Epic 3.1)
 CREATE TABLE anxiety_profiles (
     log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id UUID NOT NULL REFERENCES patients(id),
     session_id UUID NOT NULL,
     recorded_at TIMESTAMP NOT NULL,
     vr_state VARCHAR(50) NOT NULL,

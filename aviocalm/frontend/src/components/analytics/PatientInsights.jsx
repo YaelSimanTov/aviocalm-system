@@ -103,15 +103,15 @@ const PatientInsights = ({ patientId }) => {
     }
 
     // Prepare data for chart
-    const sortedInsights = [...insights].sort((a, b) => new Date(a.RecordedAt) - new Date(b.RecordedAt));
+    const sortedInsights = [...insights].sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
     
     const labels = sortedInsights.map(insight => {
-      const date = new Date(insight.RecordedAt);
+      const date = new Date(insight.recorded_at);
       return `${date.getDate()}/${date.getMonth() + 1}`;
     });
 
-    const weightedScores = sortedInsights.map(insight => insight.CalculatedWeightedScore);
-    const peakStressScores = sortedInsights.map(insight => insight.PeakStressScore);
+    const weightedScores = sortedInsights.map(insight => insight.calculated_weighted_score);
+    const peakStressScores = sortedInsights.map(insight => insight.peak_stress_score);
 
     chartInstance.current = new Chart(ctx, {
       type: 'line',
@@ -319,30 +319,30 @@ const PatientInsights = ({ patientId }) => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {insights
-                .sort((a, b) => new Date(b.RecordedAt) - new Date(a.RecordedAt))
+                .sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at))
                 .map((insight, index) => (
-                  <tr key={insight.ScoreID} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <tr key={insight.score_id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatDate(insight.RecordedAt)}
+                      {formatDate(insight.recorded_at)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getVrStateColor(insight.VrState)}`}>
-                        {insight.VrState}
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getVrStateColor(insight.vr_state)}`}>
+                        {insight.vr_state}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getDifficultyColor(insight.Difficulty)}`}>
-                        {insight.Difficulty}
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getDifficultyColor(insight.difficulty)}`}>
+                        {insight.difficulty}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {insight.AvgHeartRate}
+                      {insight.avg_heart_rate}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {insight.PeakStressScore}
+                      {insight.peak_stress_score}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {insight.CalculatedWeightedScore}
+                      {insight.calculated_weighted_score}
                     </td>
                   </tr>
                 ))}
