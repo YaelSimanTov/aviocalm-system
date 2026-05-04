@@ -1,43 +1,37 @@
-// src/db/dbManager.js
-const { Pool } = require('pg');
-
-const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'aviocalm',
-  password: 'postgres',
-  port: 5433,
-});
+const pool = require('../config/db');
 
 /**
- * Inserts a synchronized patient record from the VR and Watch into the database.
- * @param {Object} record - The synchronized data object
+ * שומר רשומה מסונכרנת של נתוני דופק ו-VR לטבלה anxiety_profiles
+ * תואם למבנה ה-DB: log_id, patient_id, session_id, recorded_at, vr_state, difficulty, heart_rate, stress_score, spo2, therapist_action
  */
 async function insertAnxietyProfile(record) {
     const query = `
-        INSERT INTO "anxiety_profiles" 
-        ("patient_id", "session_id", "recorded_at", "vr_state", "difficulty", "heart_rate", "stress_score", "spo2", "therapist_action")
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        INSERT INTO anxiety_profiles 
+        (patient_id, session_id, vr_state, difficulty, heart_rate, stress_score, spo2, therapist_action)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING *;
     `;
-    
-    // Mapping the object fields to the query parameters
+
+    // מיפוי הערכים לפי הסדר בשאילתה ($1 עד $8)
+    // הערה: log_id ו-recorded_at נוצרים אוטומטית ב-DB
     const values = [
-        record.patientId || 'unknown', // Use provided patientId or default to 'unknown'
-        record.sessionId,
-        record.timestamp,
-        record.vrState,
-        record.difficulty,
-        record.vitals.heartRate,
-        record.vitals.stressScore,
-        record.vitals.spo2,
-        record.therapistAction || 'None'
+        record.patient_id,      // $1
+        record.session_id,      // $2
+        record.vr_state,        // $3
+        record.difficulty,      // $4
+        record.heart_rate,      // $5
+        record.stress_score,    // $6
+        record.spo2,            // $7
+        record.therapist_action // $8
     ];
 
     try {
-        await pool.query(query, values);
-        console.log(`[DB] Successfully saved profile at ${record.timestamp}`);
+        const result = await pool.query(query, values);
+        console.log(`[DB] Profile saved successfully for patient ${record.patient_id}. Log ID: ${result.rows[0].log_id}`);
+        return result.rows[0];
     } catch (error) {
-        console.error('[DB ERROR] Failed to insert anxiety profile:', error);
+        console.error('[DB ERROR] Failed to insert into anxiety_profiles:', error.message);
+        throw error;
     }
 }
 
