@@ -37,6 +37,13 @@ const ActiveMonitor = () => {
 
   const [dataHistory, setDataHistory] = useState([]);
   const [previousMetrics, setPreviousMetrics] = useState(null);
+  
+  // Patient baseline data (mock for now - will be fetched from API)
+  const [patientBaseline, setPatientBaseline] = useState({
+    avg_resting_hr: 75,
+    avg_resting_stress: 20,
+    calibrated_at: new Date().toISOString()
+  });
     const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef(null);
 
@@ -64,13 +71,23 @@ const ActiveMonitor = () => {
       },
       {
         label: 'Baseline HR',
-        data: Array(dataHistory.length).fill(80),
+        data: Array(dataHistory.length).fill(patientBaseline.avg_resting_hr),
         borderColor: 'rgb(107, 114, 128)',
         borderDash: [5, 5],
         borderWidth: 2,
         pointRadius: 0,
         fill: false,
         yAxisID: 'y'
+      },
+      {
+        label: 'Baseline Stress',
+        data: Array(dataHistory.length).fill(patientBaseline.avg_resting_stress),
+        borderColor: 'rgb(156, 163, 175)',
+        borderDash: [3, 3],
+        borderWidth: 2,
+        pointRadius: 0,
+        fill: false,
+        yAxisID: 'y1'
       }
     ]
   };
@@ -268,6 +285,49 @@ const ActiveMonitor = () => {
             </div>
             <div className={getTrendColor(metrics.stressScore, previousMetrics?.stressScore)}>
               {getTrendIndicator(metrics.stressScore, previousMetrics?.stressScore)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Baseline Comparison */}
+      <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Baseline Comparison</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Heart Rate</p>
+              <p className="text-lg font-bold text-gray-900">
+                Current: {metrics.hr} BPM
+              </p>
+              <p className="text-sm text-gray-500">
+                Baseline: {patientBaseline.avg_resting_hr} BPM
+              </p>
+            </div>
+            <div className="text-2xl">
+              {metrics.hr > patientBaseline.avg_resting_hr ? (
+                <span className="text-red-600">↑</span>
+              ) : (
+                <span className="text-green-600">→</span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Stress Score</p>
+              <p className="text-lg font-bold text-gray-900">
+                Current: {metrics.stressScore}
+              </p>
+              <p className="text-sm text-gray-500">
+                Baseline: {patientBaseline.avg_resting_stress}
+              </p>
+            </div>
+            <div className="text-2xl">
+              {metrics.stressScore > patientBaseline.avg_resting_stress ? (
+                <span className="text-red-600">↑</span>
+              ) : (
+                <span className="text-green-600">→</span>
+              )}
             </div>
           </div>
         </div>

@@ -137,6 +137,14 @@ export const GlobalHeader = ({ isSidebarCollapsed }) => {
       console.log('[GLOBAL HEADER] Emergency stop triggered:', data);
     });
 
+    // 6. Listen for TERMINATE events from Safety Engine
+    socket.on('TERMINATE', (data) => {
+      setPanicState(true);
+      setEmergencyState(true);
+      setShowManualStop(true);
+      console.log('[GLOBAL HEADER] TERMINATE event received:', data);
+    });
+
     // Cleanup listeners and disconnect on component unmount
     return () => {
       socket.off('vr_status_change');
@@ -144,12 +152,22 @@ export const GlobalHeader = ({ isSidebarCollapsed }) => {
       socket.off('distress_alert');
       socket.off('live_metrics');
       socket.off('EMERGENCY_STOP');
+      socket.off('TERMINATE');
       socket.disconnect();
     };
   }, []);
 
   const handleManualStop = () => {
-    socket.emit('emergency_stop', { timestamp: new Date().toISOString() });
+    socket.emit('TERMINATE', {
+      reason: 'Manual Therapist Override',
+      channel: 'manual',
+      timestamp: new Date().toISOString(),
+      vitals: {
+        heartRate: 0, // Will be populated by backend
+        stressScore: 0,
+        spo2: 0
+      }
+    });
   };
 
   return (
@@ -197,15 +215,19 @@ export const GlobalHeader = ({ isSidebarCollapsed }) => {
 
         {/* Right Section - Connectivity Status and Controls */}
         <div className="global-header__right">
-          {/* Manual Override Button */}
-          {showManualStop && (
-            <button
-              onClick={handleManualStop}
-              className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-lg transition-colors duration-200 mr-4 whitespace-nowrap"
-            >
-              Manual Override - Stop VR
-            </button>
-          )}
+          {/* Prominent Stop Simulation Button */}
+          <button
+            onClick={handleManualStop}
+            className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-all duration-200 mr-4 whitespace-nowrap border-2 border-red-800 animate-pulse"
+          >
+            <div className="flex items-center">
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+              </svg>
+              Stop Simulation
+            </div>
+          </button>
 
           <div className="global-header__status">
             <div className={`global-header__device ${vrConnected ? 'global-header__device--connected' : 'global-header__device--disconnected'}`}>

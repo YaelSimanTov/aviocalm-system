@@ -71,15 +71,15 @@ class ClinicalDataSeeder {
     const sceneTime = new Date(sessionDate.getTime() + (sceneIndex * 10 * 60 * 1000)); // 10 minutes between scenes
 
     return {
-      ScoreID: uuidv4(),
-      SessionID: sessionId,
-      PatientID: this.mockPatientId,
-      VrState: vrState,
-      Difficulty: difficulty,
-      AvgHeartRate: Math.round(avgHeartRate * 10) / 10, // Round to 1 decimal
-      PeakStressScore: Math.round(peakStressScore * 10) / 10, // Round to 1 decimal
-      CalculatedWeightedScore: Math.round(calculatedWeightedScore * 10) / 10, // Round to 1 decimal
-      RecordedAt: sceneTime.toISOString()
+      score_id: uuidv4(),
+      session_id: sessionId,
+      patient_id: this.mockPatientId,
+      vr_state: vrState,
+      difficulty: difficulty,
+      avg_heart_rate: Math.round(avgHeartRate * 10) / 10, // Round to 1 decimal
+      peak_stress_score: Math.round(peakStressScore * 10) / 10, // Round to 1 decimal
+      calculated_weighted_score: Math.round(calculatedWeightedScore * 10) / 10, // Round to 1 decimal
+      recorded_at: sceneTime.toISOString()
     };
   }
 
@@ -163,10 +163,10 @@ class ClinicalDataSeeder {
 
     sql += `-- Scene Stress Scores Data\n`;
     sql += `INSERT INTO scene_stress_scores \n`;
-    sql += `(ScoreID, SessionID, PatientID, VrState, Difficulty, AvgHeartRate, PeakStressScore, CalculatedWeightedScore, RecordedAt) VALUES\n`;
+    sql += `(score_id, session_id, patient_id, vr_state, difficulty, avg_heart_rate, peak_stress_score, calculated_weighted_score, recorded_at) VALUES\n`;
 
     const values = sessions.map(session => 
-      `('${session.ScoreID}', '${session.SessionID}', '${session.PatientID}', '${session.VrState}', '${session.Difficulty}', ${session.AvgHeartRate}, ${session.PeakStressScore}, ${session.CalculatedWeightedScore}, '${session.RecordedAt}')`
+      `('${session.score_id}', '${session.session_id}', '${session.patient_id}', '${session.vr_state}', '${session.difficulty}', ${session.avg_heart_rate}, ${session.peak_stress_score}, ${session.calculated_weighted_score}, '${session.recorded_at}')`
     );
 
     sql += values.join(',\n');
@@ -175,11 +175,11 @@ class ClinicalDataSeeder {
     // Generate some anxiety_profiles data as well
     sql += `-- Sample Anxiety Profiles Data\n`;
     sql += `INSERT INTO anxiety_profiles \n`;
-    sql += `(LogID, SessionID, RecordedAt, VrState, Difficulty, HeartRate, StressScore, SpO2, TherapistAction) VALUES\n`;
+    sql += `(log_id, session_id, recorded_at, vr_state, difficulty, heart_rate, stress_score, spo2, therapist_action) VALUES\n`;
 
     const profileData = this.generateSampleAnxietyProfiles(sessions);
     const profileValues = profileData.map(profile =>
-      `('${profile.LogID}', '${profile.SessionID}', '${profile.RecordedAt}', '${profile.VrState}', '${profile.Difficulty}', ${profile.HeartRate}, ${profile.StressScore}, ${profile.SpO2}, '${profile.TherapistAction}')`
+      `('${profile.log_id}', '${profile.session_id}', '${profile.recorded_at}', '${profile.vr_state}', '${profile.difficulty}', ${profile.heart_rate}, ${profile.stress_score}, ${profile.spo2}, '${profile.therapist_action}')`
     );
 
     sql += profileValues.join(',\n');
@@ -201,19 +201,19 @@ class ClinicalDataSeeder {
       const recordCount = Math.floor(Math.random() * 2) + 2; // 2-3 records
       
       for (let i = 0; i < recordCount; i++) {
-        const recordTime = new Date(session.RecordedAt);
+        const recordTime = new Date(session.recorded_at);
         recordTime.setMinutes(recordTime.getMinutes() + (i * 3)); // 3 minutes apart
         
         profiles.push({
-          LogID: uuidv4(),
-          SessionID: session.SessionID,
-          RecordedAt: recordTime.toISOString(),
-          VrState: session.VrState,
-          Difficulty: session.Difficulty,
-          HeartRate: Math.round(session.AvgHeartRate + (Math.random() - 0.5) * 10),
-          StressScore: Math.round(session.PeakStressScore + (Math.random() - 0.5) * 5),
-          SpO2: Math.round(95 + (Math.random() - 0.5) * 4),
-          TherapistAction: 'None'
+          log_id: uuidv4(),
+          session_id: session.session_id,
+          recorded_at: recordTime.toISOString(),
+          vr_state: session.vr_state,
+          difficulty: session.difficulty,
+          heart_rate: Math.round(session.avg_heart_rate + (Math.random() - 0.5) * 10),
+          stress_score: Math.round(session.peak_stress_score + (Math.random() - 0.5) * 5),
+          spo2: Math.round(95 + (Math.random() - 0.5) * 4),
+          therapist_action: 'None'
         });
       }
     });

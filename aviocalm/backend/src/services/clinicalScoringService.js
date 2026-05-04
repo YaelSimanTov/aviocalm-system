@@ -58,15 +58,15 @@ class ClinicalScoringService {
     const durationSeconds = this.calculateSceneDuration(metrics);
 
     return {
-      ScoreID: null, // Will be assigned by database
-      SessionID: sessionId,
-      PatientID: patientId,
-      VrState: vrState,
-      Difficulty: difficulty,
-      AvgHeartRate: avgHeartRate,
-      PeakStressScore: peakStressScore,
-      CalculatedWeightedScore: calculatedWeightedScore,
-      RecordedAt: new Date().toISOString(),
+      score_id: null, // Will be assigned by database
+      session_id: sessionId,
+      patient_id: patientId,
+      vr_state: vrState,
+      difficulty: difficulty,
+      avg_heart_rate: avgHeartRate,
+      peak_stress_score: peakStressScore,
+      calculated_weighted_score: calculatedWeightedScore,
+      recorded_at: new Date().toISOString(),
       DurationSeconds: durationSeconds
     };
   }
@@ -145,27 +145,27 @@ class ClinicalScoringService {
     try {
       const query = `
         INSERT INTO "scene_stress_scores" 
-        ("ScoreID", "SessionID", "PatientID", "VrState", "Difficulty", 
-         "AvgHeartRate", "PeakStressScore", "CalculatedWeightedScore", "RecordedAt")
+        ("score_id", "session_id", "patient_id", "vr_state", "difficulty", 
+         "avg_heart_rate", "peak_stress_score", "calculated_weighted_score", "recorded_at")
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
       `;
 
       const values = [
-        scoreData.ScoreID,
-        scoreData.SessionID,
-        scoreData.PatientID,
-        scoreData.VrState,
-        scoreData.Difficulty,
-        scoreData.AvgHeartRate,
-        scoreData.PeakStressScore,
-        scoreData.CalculatedWeightedScore,
-        scoreData.RecordedAt
+        scoreData.score_id,
+        scoreData.session_id,
+        scoreData.patient_id,
+        scoreData.vr_state,
+        scoreData.difficulty,
+        scoreData.avg_heart_rate,
+        scoreData.peak_stress_score,
+        scoreData.calculated_weighted_score,
+        scoreData.recorded_at
       ];
 
       // Note: This would need a database connection implementation
       // For now, return the score data as if saved
-      console.log(`[CLINICAL SCORING] Saved scene scores for ${scoreData.VrState} - Weighted Score: ${scoreData.CalculatedWeightedScore.toFixed(2)}`);
+      console.log(`[CLINICAL SCORING] Saved scene scores for ${scoreData.vr_state} - Weighted Score: ${scoreData.calculated_weighted_score.toFixed(2)}`);
       
       return scoreData;
     } catch (error) {
@@ -235,26 +235,26 @@ class ClinicalScoringService {
       
       return [
         {
-          ScoreID: 'mock-1',
-          SessionID: 'session-1',
-          PatientID: patientId,
-          VrState: 'Boarding',
-          Difficulty: 'Easy',
-          AvgHeartRate: 85.5,
-          PeakStressScore: 45.2,
-          CalculatedWeightedScore: 42.8,
-          RecordedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+          score_id: 'mock-1',
+          session_id: 'session-1',
+          patient_id: patientId,
+          vr_state: 'Boarding',
+          difficulty: 'Easy',
+          avg_heart_rate: 85.5,
+          peak_stress_score: 45.2,
+          calculated_weighted_score: 42.8,
+          recorded_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
         },
         {
-          ScoreID: 'mock-2',
-          SessionID: 'session-2',
-          PatientID: patientId,
-          VrState: 'Takeoff',
-          Difficulty: 'Medium',
-          AvgHeartRate: 95.3,
-          PeakStressScore: 68.7,
-          CalculatedWeightedScore: 71.2,
-          RecordedAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString()
+          score_id: 'mock-2',
+          session_id: 'session-2',
+          patient_id: patientId,
+          vr_state: 'Takeoff',
+          difficulty: 'Medium',
+          avg_heart_rate: 95.3,
+          peak_stress_score: 68.7,
+          calculated_weighted_score: 65.4,
+          recorded_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
         }
       ];
     } catch (error) {
