@@ -202,6 +202,7 @@ class ClinicalScoringService {
       // Also save individual metrics to anxiety_profiles table
       for (const metric of sceneMetrics) {
         await insertAnxietyProfile({
+          patientId: patientId,
           sessionId: sessionId,
           timestamp: metric.timestamp,
           vrState: vrState,

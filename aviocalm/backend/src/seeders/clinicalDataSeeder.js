@@ -8,7 +8,7 @@ const { v4: uuidv4 } = require('uuid');
 
 class ClinicalDataSeeder {
   constructor() {
-    this.mockPatientId = '550e8400-e29b-41d4-a716-446655440000'; // Mock patient UUID
+    this.mockPatientId = '123456789'; // Mock patient national_id
     this.vrStates = ['Boarding', 'Takeoff', 'Cruising', 'Landing', 'Taxiing'];
     this.difficulties = ['Easy', 'Medium', 'Hard'];
   }
@@ -73,7 +73,7 @@ class ClinicalDataSeeder {
     return {
       score_id: uuidv4(),
       session_id: sessionId,
-      patient_id: this.mockPatientId,
+      patient_id: '550e8400-e29b-41d4-a716-446655440000', // UUID for scene_stress_scores table
       vr_state: vrState,
       difficulty: difficulty,
       avg_heart_rate: Math.round(avgHeartRate * 10) / 10, // Round to 1 decimal
@@ -158,7 +158,7 @@ class ClinicalDataSeeder {
 
     sql += `-- Mock Patient (if not exists)\n`;
     sql += `INSERT INTO patients (id, national_id, full_name, therapist_id, status) VALUES \n`;
-    sql += `('${this.mockPatientId}', '123456789', 'John Doe', '550e8400-e29b-41d4-a716-446655440001', 'Active') \n`;
+    sql += `('550e8400-e29b-41d4-a716-446655440000', '${this.mockPatientId}', 'John Doe', '550e8400-e29b-41d4-a716-446655440001', 'Active') \n`;
     sql += `ON CONFLICT (id) DO NOTHING;\n\n`;
 
     sql += `-- Scene Stress Scores Data\n`;
@@ -175,11 +175,11 @@ class ClinicalDataSeeder {
     // Generate some anxiety_profiles data as well
     sql += `-- Sample Anxiety Profiles Data\n`;
     sql += `INSERT INTO anxiety_profiles \n`;
-    sql += `(log_id, session_id, recorded_at, vr_state, difficulty, heart_rate, stress_score, spo2, therapist_action) VALUES\n`;
+    sql += `(log_id, patient_id, session_id, recorded_at, vr_state, difficulty, heart_rate, stress_score, spo2, therapist_action) VALUES\n`;
 
     const profileData = this.generateSampleAnxietyProfiles(sessions);
     const profileValues = profileData.map(profile =>
-      `('${profile.log_id}', '${profile.session_id}', '${profile.recorded_at}', '${profile.vr_state}', '${profile.difficulty}', ${profile.heart_rate}, ${profile.stress_score}, ${profile.spo2}, '${profile.therapist_action}')`
+      `('${profile.log_id}', '${profile.patient_id}', '${profile.session_id}', '${profile.recorded_at}', '${profile.vr_state}', '${profile.difficulty}', ${profile.heart_rate}, ${profile.stress_score}, ${profile.spo2}, '${profile.therapist_action}')`
     );
 
     sql += profileValues.join(',\n');
@@ -206,6 +206,7 @@ class ClinicalDataSeeder {
         
         profiles.push({
           log_id: uuidv4(),
+          patient_id: this.mockPatientId, // Use national_id for anxiety_profiles table
           session_id: session.session_id,
           recorded_at: recordTime.toISOString(),
           vr_state: session.vr_state,

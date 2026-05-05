@@ -17,7 +17,7 @@ class MockDataSimulator {
     this.currentVrState = 'Boarding';
     this.currentDifficulty = 'Easy';
     this.sessionId = `session_${Date.now()}`;
-    this.patientId = '550e8400-e29b-41d4-a716-446655440000'; // Mock patient ID
+    this.patientId = '123456789'; // Mock patient national_id
     
     // Baseline values for realistic simulation
     this.baseline = {
