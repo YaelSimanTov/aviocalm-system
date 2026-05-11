@@ -106,14 +106,22 @@ AvioCalm is a professional therapeutic platform for treating Aerophobia (fear of
 * **[FE] Empty State:** Graceful handling showing 'No patients found matching your search'.
 * **[Role Control:** Owner sees all patients; Therapists see only their own.
 
-#### User Story 2.3: Full Patient Profile Page with 3 Tabs (NEW)
-* **[FE] UI:** Dedicated Patient Profile Page at /patients/:id replacing the old Modal concept.
-* **[FE] Tabs:** Three-tab interface:
-    1. **Personal Info:** Editable patient details (Full Name, National ID, Phone, Email, Date of Birth, Address, Medical History, Phobia Type, Triggers, Calming Factors, Emergency Contacts).
-    2. **Treatment History:** Table showing Date, VR Room, Summary Metrics, and PDF Export button (US 5.3).
-    3. **Appointments:** List of future and past sessions.
-* **[BE] API:** `GET /api/patients/:id` with JOINs for Appointments and History.
+#### User Story 2.3: Patient Profile & Data Dashboard
+As a Therapist, I want to access a comprehensive Patient Profile from the Patient List to manage personal data and analyze treatment history in one place.
+* **[FE] UI:** Implement a 3-tab layout:
+  - 📝 Personal Info: Demographics, emergency contact, and medical/phobia background (Editable).
+  - 📈 Treatment History: A log of all home sessions. Clicking a session opens a drill-down view featuring:
+    - Time-series heart rate/stress graphs with Plot Bands (colored by VR States).
+    - Time-in-Range distribution (Pie/Bar charts).
+    - Clinical HRV (RMSSD) score for that session.
+  - 🚀 Progression: Visual comparison of performance across sessions (Trend Analysis) and "Download PDF Report" functionality.
+* **[BE/AI] Implement HRV (RMSSD) calculation and progression aggregation for the respective tabs.
+* **[BE] Implement Downsampling/Bucketing for smooth graph rendering in the History tab.
+* **[BE] API:** `GET /api/patients/:id` with JOINs for Treatment History and Progression data.
 * **[BE] API:** `PUT /api/patients/:id` for updating patient details (Personal Info tab).
+* **[BE] API:** `GET /api/patients/:id/sessions` for Treatment History tab with aggregated metrics.
+* **[BE] API:** `GET /api/patients/:id/progression` for Progression tab with trend analysis.
+* **[BE] API:** `GET /api/patients/:id/pdf` for PDF report generation.
 * **[Role Control:** Owner can view any patient; Therapists can only view their own patients.
 
 ---
@@ -140,7 +148,7 @@ As a therapist, I want a weighted anxiety score that separates different VR scen
 * **BE:** Aggregation Mechanism: A server trigger that detects a change in VR status and aggregates all completed `AnxietyProfiles` records associated with that scene and difficulty.
 * **BE:** Weighted Scoring Algorithm: Develop a service calculating a final score (Engineering Note: Weighting varies by difficulty, e.g., leniency for "Hard"). Save the result with the difficulty tag.
 * **BE/DB:** Session Integrity: Ensure every summary row is correctly linked to the SessionID and PatientID for historical comparison.
-* **UX (UI Location & Navigation):** Tables and charts displaying weighted scores and historical comparisons will be shown under the 📊 Analytics -> Patient Insights page.
+* **UX (UI Location & Navigation):** Tables and charts displaying weighted scores and historical comparisons will be shown in the Patient Profile -> Treatment History tab (accessible via Clinical -> Patient List -> View Record).
 
 ---
 
@@ -187,15 +195,16 @@ As a therapist, I want a data-driven recommendation on whether the patient is re
 
 ### Epic 5: Reporting & Analytics
 
-**User Story 5.1: Patient Analytics & XAI**
+**User Story 5.1: Patient Analytics & XAI (Integrated)**
 **Tasks:**
-* **FE:** Integration with a charting library (D3.js / Chart.js).
+* **FE:** Integration with a charting library (D3.js / Chart.js) for Patient Profile -> Treatment History tab.
 * **FE:** Multi-axis line chart displaying HR and Stress/SpO2 over time, with Annotations when VR rooms change.
 * **BE:** Fetch data from `AnxietyProfile` and perform statistical aggregation by scene.
 * **BE Rule-Engine (Insight Generator):** Engine generating text-based insights based on statistics (e.g., "Note: Patient shows high sensitivity during the landing phase").
-* **FE:** Display "System Conclusions" as text.
+* **FE:** Display "System Conclusions" as text in Treatment History tab.
 * **FE (Explainability Markers):** Add Markers on the chart showing when the system crossed statistical thresholds and sent alerts, for full clinical transparency.
 * **BE Logic:** Integrate Feedback Loop - note if the therapist agreed with similar insights previously.
+* **UX (UI Location & Navigation):** All patient analytics features are now integrated into Patient Profile -> Treatment History tab (accessible via Clinical -> Patient List -> View Record).
 
 **User Story 5.2: Global Stats (Owner Dashboard)**
 **Tasks:**
@@ -217,22 +226,14 @@ As a therapist, I want a data-driven recommendation on whether the patient is re
 
 ### 1. Visual Sidebar Structure (LTR - Left-to-Right)
 **👥 Clinical (Group):**
-- **Patient List:** Includes Search by Name/ID.
+- **Patient List:** Includes Search by Name/ID and "View Record" access to comprehensive Patient Profile with integrated analytics.
 - **Add Patient:** Form for new entries (US 2.1).
 
 **🥽 Live Session (Group):** (Highlight visually when a VR session is active)
 - **Active Monitor:** Real-time heart rate/VR telemetry (US 3.1).
-- **AI Insights:** Real-time stage progression advice (US 4.2).
 
-**📊 Analytics (Group):** (Patient-specific data - visible to all therapists)
-- **Patient Insights:** Individual stress analysis and trends (US 5.1).
-- **Clinical Cohorts:** AI-driven patient similarity groups.
-
-**📅 Calendar:** Appointment scheduling.
-
-**🛡️ Admin (Owner Only):** Business-level data and system management
+**️ Admin (Owner Only):** Business-level data and system management
 - **Team Management:** Manage therapists and staff (US 1.3).
-- **Global Stats:** Clinic-wide KPIs and business metrics (US 5.2).
 
 **⚙️ Settings (Group):**
 - **Change Password:** Personal security update.
@@ -240,7 +241,7 @@ As a therapist, I want a data-driven recommendation on whether the patient is re
 
 ### 2. Role-Based Routing Logic
 - **Therapist Home Page:** After successful login (when `is_first_login` is false), redirect to **Patient List** (US 2.2).
-- **Owner Home Page:** After successful login (when `is_first_login` is false), redirect to **Global Stats** (US 5.2).
+- **Owner Home Page:** After successful login (when `is_first_login` is false), redirect to **Team Management** (US 1.3).
 - **First Login Flow:** If `is_first_login` is true, force redirect to `/change-password` regardless of role.
 
 ### 3. Global Header Implementation
@@ -251,9 +252,10 @@ As a therapist, I want a data-driven recommendation on whether the patient is re
 
 ### 4. Core Logic & Task Refinement
 - **Epic 1 (Security):** Remove 'Forgot Password'. If `is_first_login` is true, force redirect to `/change-password`. Successful change must trigger Auto-Logout.
-- **Epic 2 (Patients):** Owner role must see all patients; Therapists see only their own. Add 'Status' field (Active/Pending/Closed).
+- **Epic 2 (Patients):** Owner role must see all patients; Therapists see only their own. Add 'Status' field (Active/Pending/Closed). **Note:** All Patient Analytics features have been MOVED and INTEGRATED into the Patient Profile (3-tab structure) accessible via Clinical -> Patient List -> View Record.
 - **Epic 3 (Real-Time):** Setup WebSocket/MQTT for live data. Sync Heart Rate to VR Timestamps. Implement real-time device status indicators.
 - **Epic 4 (AI & Safety):** Compare HR to MedicalNorms (Age-based). Implement Emergency Stop logic. Add Therapist Feedback Loop (Agree/Disagree) to all AI recommendations. Global Panic Alert system.
+- **Epic 5 (Analytics Integration):** All patient-specific analytics (Session Graphs, HRV/RMSSD, Distributions) are now integrated into Patient Profile -> Treatment History and Progression tabs. Technical requirements for Epic 4 (Safety Engine) and Epic 5 (Downsampling, HRV algorithms) are preserved and mapped to the new tab structure.
 
 ---
 

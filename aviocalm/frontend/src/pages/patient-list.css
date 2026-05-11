@@ -4,6 +4,53 @@
   min-height: 100vh;
 }
 
+/* Loading State - Modern Spinner */
+.patient-list__loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 4rem 2rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+  margin-bottom: 2rem;
+}
+
+/* Modern Spinner Styles (matching login form) */
+.patient-list__loading .login-form__spinner {
+  display: flex;
+  align-items: center;
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.patient-list__loading .login-form__spinner-icon {
+  animation: spin 1s linear infinite;
+  margin-right: 0.75rem;
+  height: 1.25rem;
+  width: 1.25rem;
+  color: currentColor;
+}
+
+.patient-list__loading .login-form__spinner-circle {
+  opacity: 0.25;
+}
+
+.patient-list__loading .login-form__spinner-path {
+  opacity: 0.75;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Search Section */
 .patient-list__search-section {
   margin-bottom: 2rem;

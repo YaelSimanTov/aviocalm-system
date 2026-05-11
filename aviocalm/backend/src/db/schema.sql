@@ -4,9 +4,10 @@
 
 -- Drop existing tables if they exist
 DROP TABLE IF EXISTS scene_stress_scores CASCADE;
-DROP TABLE IF EXISTS anxiety_profile CASCADE;
+DROP TABLE IF EXISTS anxiety_profiles CASCADE;
 DROP TABLE IF EXISTS medical_norms CASCADE;
 DROP TABLE IF EXISTS appointments CASCADE;
+DROP TABLE IF EXISTS sessions CASCADE;
 DROP TABLE IF EXISTS patients CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 
@@ -45,17 +46,16 @@ CREATE TABLE patients (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Appointments Table (Epic 2.2)
-CREATE TABLE appointments (
+-- Sessions Table (New Epic 2.3 & 3.1)
+-- Manages concurrent clinic sessions and historical treatment data
+CREATE TABLE sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     patient_id UUID NOT NULL REFERENCES patients(id),
-    therapist_id UUID NOT NULL REFERENCES users(user_id),
-    scheduled_date TIMESTAMP NOT NULL,
-    duration_minutes INTEGER DEFAULT 60,
-    status VARCHAR(20) DEFAULT 'Scheduled' CHECK (status IN ('Scheduled', 'Completed', 'Cancelled')),
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMP,
+    duration_minutes INTEGER,
+    overall_hrv_rmssd DECIMAL(5,2),
+    status VARCHAR(20) DEFAULT 'In Progress' CHECK (status IN ('In Progress', 'Completed', 'Halted'))
 );
 
 -- Anxiety Profiles Table (Epic 3.1)
@@ -69,7 +69,8 @@ CREATE TABLE anxiety_profiles (
     heart_rate INTEGER,
     stress_score INTEGER,
     spo2 INTEGER,
-    therapist_action VARCHAR(50) DEFAULT 'None'
+    therapist_action VARCHAR(50) DEFAULT 'None',
+    CONSTRAINT fk_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
 );
 
 -- Scene Stress Scores Table (Epic 3.1)
@@ -82,7 +83,8 @@ CREATE TABLE scene_stress_scores (
     avg_heart_rate DECIMAL(5,2) NOT NULL,
     peak_stress_score DECIMAL(5,2) NOT NULL,
     calculated_weighted_score DECIMAL(5,2) NOT NULL,
-    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_scene_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
 );
 
 
@@ -114,9 +116,9 @@ CREATE TABLE patient_baselines (
 CREATE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_patients_therapist ON patients(therapist_id);
-CREATE INDEX idx_appointments_patient ON appointments(patient_id);
-CREATE INDEX idx_appointments_therapist ON appointments(therapist_id);
-CREATE INDEX idx_appointments_date ON appointments(scheduled_date);
+CREATE INDEX idx_sessions_patient ON sessions(patient_id);
+CREATE INDEX idx_sessions_status ON sessions(status);
+CREATE INDEX idx_sessions_started_at ON sessions(started_at);
 CREATE INDEX idx_anxiety_profiles_session ON anxiety_profiles(session_id);
 CREATE INDEX idx_anxiety_profiles_timestamp ON anxiety_profiles(recorded_at);
 CREATE INDEX idx_scene_stress_scores_patient ON scene_stress_scores(patient_id);
@@ -133,9 +135,7 @@ INSERT INTO medical_norms (age_group, min_heart_rate, max_heart_rate, spo2_min, 
 ('18-25', 60, 100, 95.0, 75.0, 30, 25.0),
 ('26-40', 60, 100, 95.0, 75.0, 30, 25.0),
 ('41-60', 60, 100, 94.0, 70.0, 25, 20.0),
-('18-25', 70, 110, 96.0, 65.0, 20, 20.0),
-('26-40', 70, 110, 96.0, 65.0, 20, 20.0),
-('41-60', 70, 110, 95.0, 60.0, 15, 15.0);
+('60+', 70, 110, 96.0, 65.0, 20, 20.0);
 
 -- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -144,11 +144,10 @@ BEGIN
     NEW.updated_at = CURRENT_TIMESTAMP;
     RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 -- Create triggers for updated_at
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_patients_updated_at BEFORE UPDATE ON patients FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_appointments_updated_at BEFORE UPDATE ON appointments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 

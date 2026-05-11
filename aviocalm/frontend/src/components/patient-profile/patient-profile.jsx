@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiRequest } from '../../utils/api';
+import { TreatmentHistory } from '../treatment-history/TreatmentHistory';
 import './patient-profile.css';
 
 export const PatientProfile = () => {
@@ -310,10 +311,10 @@ export const PatientProfile = () => {
             Treatment History
           </button>
           <button
-            className={`patient-profile__tab-button ${activeTab === 'appointments' ? 'active' : ''}`}
-            onClick={() => handleTabChange('appointments')}
+            className={`patient-profile__tab-button ${activeTab === 'progression' ? 'active' : ''}`}
+            onClick={() => handleTabChange('progression')}
           >
-            Appointments
+            🚀 Progression
           </button>
         </div>
 
@@ -322,7 +323,7 @@ export const PatientProfile = () => {
           {activeTab === 'personal' && (
             <div className="patient-profile__personal-tab">
               <div className="patient-profile__tab-header">
-                <h3 className="patient-profile__tab-title">Personal Information</h3>
+                <h3 className="patient-profile__tab-title">📝 Personal Information</h3>
                 {!isEditing ? (
                   <button onClick={handleEditToggle} className="patient-profile__edit-btn">
                     Edit
@@ -382,8 +383,9 @@ export const PatientProfile = () => {
                           name="national_id"
                           value={formData.national_id}
                           onChange={handleInputChange}
-                          disabled={!isEditing}
-                          className={`patient-profile__input ${formErrors.national_id ? 'patient-profile__input--error' : ''}`}
+                          disabled={true}
+                          className={`patient-profile__input patient-profile__input--disabled ${formErrors.national_id ? 'patient-profile__input--error' : ''}`}
+                          title="National ID cannot be edited after patient creation"
                         />
                         {formErrors.national_id && (
                           <p className="patient-profile__error-text">{formErrors.national_id}</p>
@@ -426,7 +428,7 @@ export const PatientProfile = () => {
                         <input
                           type="date"
                           name="date_of_birth"
-                          value={formData.date_of_birth}
+                          value={formData.date_of_birth ? formData.date_of_birth.split('T')[0] : ''}
                           onChange={handleInputChange}
                           disabled={!isEditing}
                           className={`patient-profile__input ${formErrors.date_of_birth ? 'patient-profile__input--error' : ''}`}
@@ -550,21 +552,25 @@ export const PatientProfile = () => {
 
           {activeTab === 'history' && (
             <div className="patient-profile__history-tab">
-              <div className="patient-profile__empty-state">
-                <h3 className="patient-profile__empty-title">No treatment history yet</h3>
-                <p className="patient-profile__empty-message">
-                  Treatment sessions and progress data will appear here once VR therapy sessions begin.
-                </p>
+              <div className="patient-profile__tab-header">
+                <h3 className="patient-profile__tab-title">📈 Treatment History</h3>
               </div>
+              <TreatmentHistory patientId={id} />
             </div>
           )}
 
-          {activeTab === 'appointments' && (
-            <div className="patient-profile__appointments-tab">
+          {activeTab === 'progression' && (
+            <div className="patient-profile__progression-tab">
+              <div className="patient-profile__tab-header">
+                <h3 className="patient-profile__tab-title">🚀 Progression Analysis</h3>
+                <button className="patient-profile__pdf-btn">
+                  📄 Download PDF Report
+                </button>
+              </div>
               <div className="patient-profile__empty-state">
-                <h3 className="patient-profile__empty-title">No upcoming appointments</h3>
+                <h3 className="patient-profile__empty-title">Progression data coming soon</h3>
                 <p className="patient-profile__empty-message">
-                  Scheduled therapy sessions will appear here once appointments are created.
+                  Longitudinal trend analysis and performance comparison across sessions will appear here once multiple treatment sessions are completed.
                 </p>
               </div>
             </div>

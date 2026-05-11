@@ -6,7 +6,7 @@ const { Server } = require('socket.io');
 require('dotenv').config();
 
 // Database manager for saving IoT/VR data
-const { insertAnxietyProfile } = require('./db/dbManager');
+const { insertAnxietyProfile, initializeDatabase } = require('./db/dbManager');
 
 // Mock data simulator for centralized mock data generation
 const { initializeMockSimulator, startMockSimulation, stopMockSimulation, getMockSimulationStatus } = require('./services/mockDataSimulator');
@@ -94,21 +94,29 @@ const SAFETY_THRESHOLDS = {
     SPO2_MIN: 90          // Minimum acceptable SpO2 level
 };
 
-io.on('connection', (socket) => {
+io.on('connection', async (socket) => {
     console.log(`[CONNECTION] New client connected with ID: ${socket.id}`);
     
-    // Initialize mock simulator with io instance
-    initializeMockSimulator(io);
-    
-    // Start centralized mock data simulation
-    startMockSimulation();
+    try {
+        // Initialize database with required mock data
+        await initializeDatabase();
+        console.log('[INIT] Database initialization completed');
+        
+        // Initialize mock simulator with io instance
+        initializeMockSimulator(io);
+        
+        // Start centralized mock data simulation
+        await startMockSimulation();
+    } catch (error) {
+        console.error('[INIT] Database initialization failed:', error);
+    }
 
-    // CHANNEL 1: Listening ONLY to the VR Headset (Unity)
-    socket.on('vr_system_log', (logMessage) => {
+    // CHANNEL 1: Listening ONLY to Unity VR
+    socket.on('vr_log_message', (logMessage) => {
         // Broadcast to React FE that VR is connected
         io.emit('vr_status_change', true); 
 
-        // Parse the flight state
+        // Parse flight state
         if (logMessage.includes("Flight state changed to:")) {
             const extractedState = logMessage.split(": ")[1].trim();
             if (Object.values(FlightState).includes(extractedState)) {
@@ -116,7 +124,7 @@ io.on('connection', (socket) => {
                 console.log(`[UNITY VR] Patient transitioned to: ${currentVrState}`);
             }
         } 
-        // Parse the difficulty level
+        // Parse difficulty level
         else if (logMessage.includes("The Level Diffculty is")) {
             const extractedDiff = logMessage.split("is ")[1].trim();
             if (Object.values(LevelDiff).includes(extractedDiff)) {
@@ -154,7 +162,7 @@ io.on('connection', (socket) => {
             therapistAction: 'None'
         };
 
-        // Save directly to the PostgreSQL database asynchronously
+        // Save directly to PostgreSQL database asynchronously
         await insertAnxietyProfile(syncedPatientRecord);
     });
 

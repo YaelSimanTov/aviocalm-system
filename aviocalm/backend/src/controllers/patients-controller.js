@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { completeSessionWithHRV } = require('../db/dbManager');
 
 // Get all patients (with role-based filtering and search)
 const getAllPatients = async (req, res) => {
@@ -270,27 +271,25 @@ const updatePatient = async (req, res) => {
       }
     }
     
-    // Update the patient
+    // Update the patient (National ID excluded to maintain data integrity)
     const updateQuery = `
       UPDATE patients SET 
-        national_id = $1,
-        full_name = $2,
-        phone = $3,
-        email = $4,
-        date_of_birth = $5,
-        address = $6,
-        medical_history = $7,
-        phobia_type = $8,
-        phobia_triggers = $9,
-        calming_factors = $10,
-        emergency_contact_name = $11,
-        emergency_contact_phone = $12,
+        full_name = $1,
+        phone = $2,
+        email = $3,
+        date_of_birth = $4,
+        address = $5,
+        medical_history = $6,
+        phobia_type = $7,
+        phobia_triggers = $8,
+        calming_factors = $9,
+        emergency_contact_name = $10,
+        emergency_contact_phone = $11,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $13
+      WHERE id = $12
     `;
     
     const updateValues = [
-      national_id,
       full_name,
       phone || null,
       email || null,
@@ -334,9 +333,341 @@ const updatePatient = async (req, res) => {
   }
 };
 
+// Complete session with HRV calculation
+const completeSession = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { role, userId } = req.user;
+    const { durationMinutes, status = 'Completed' } = req.body;
+    
+    // First verify session exists and user has access
+    const sessionCheck = await pool.query(
+      'SELECT s.id, s.patient_id, p.therapist_id FROM sessions s JOIN patients p ON s.patient_id = p.id WHERE s.id = $1',
+      [sessionId]
+    );
+    
+    if (sessionCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found'
+      });
+    }
+    
+    const sessionData = sessionCheck.rows[0];
+    
+    // Check access permissions
+    if (role !== 'Owner' && sessionData.therapist_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied'
+      });
+    }
+    
+    // Complete the session with automatic HRV calculation
+    const completionData = {
+      endedAt: new Date().toISOString(),
+      durationMinutes: durationMinutes,
+      status: status
+    };
+    
+    const success = await completeSessionWithHRV(sessionId, completionData);
+    
+    if (!success) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to complete session'
+      });
+    }
+    
+    // Fetch the updated session data to return
+    const updatedSessionQuery = `
+      SELECT 
+        id,
+        started_at,
+        ended_at,
+        duration_minutes,
+        overall_hrv_rmssd,
+        status
+      FROM sessions 
+      WHERE id = $1
+    `;
+    
+    const updatedSession = await pool.query(updatedSessionQuery, [sessionId]);
+    
+    res.json({
+      success: true,
+      data: updatedSession.rows[0],
+      message: 'Session completed successfully with HRV calculation'
+    });
+    
+  } catch (error) {
+    console.error('Error completing session:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+// Get patient sessions list
+const getPatientSessions = async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    const { role, userId } = req.user;
+    
+    // First verify patient exists and user has access
+    let checkQuery, checkParams;
+    
+    if (role === 'Owner') {
+      checkQuery = 'SELECT id FROM patients WHERE id = $1';
+      checkParams = [patientId];
+    } else {
+      checkQuery = 'SELECT id FROM patients WHERE id = $1 AND therapist_id = $2';
+      checkParams = [patientId, userId];
+    }
+    
+    const patientCheck = await pool.query(checkQuery, checkParams);
+    
+    if (patientCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient not found or access denied'
+      });
+    }
+    
+    // Query sessions for patient with difficulty levels
+    const sessionsQuery = `
+      SELECT 
+        s.id,
+        s.started_at,
+        s.duration_minutes,
+        s.overall_hrv_rmssd,
+        s.status,
+        COALESCE(
+          json_agg(DISTINCT ap.difficulty) FILTER (WHERE ap.difficulty IS NOT NULL),
+          '[]'::json
+        ) as difficulties
+      FROM sessions s
+      LEFT JOIN anxiety_profiles ap ON s.id = ap.session_id
+      WHERE s.patient_id = $1
+      GROUP BY s.id, s.started_at, s.duration_minutes, s.overall_hrv_rmssd, s.status
+      ORDER BY s.started_at DESC
+    `;
+    
+    const result = await pool.query(sessionsQuery, [patientId]);
+    
+    // Debug: Log the results to verify difficulties array
+    console.log('Sessions query result for patient', patientId, ':', result.rows.map(row => ({
+      id: row.id,
+      difficulties: row.difficulties,
+      difficultiesType: typeof row.difficulties,
+      difficultiesLength: Array.isArray(row.difficulties) ? row.difficulties.length : 'not array'
+    })));
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching patient sessions:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+// Get session analytics with downsampling
+const getSessionAnalytics = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    
+    // First verify session exists
+    const sessionCheck = await pool.query(
+      'SELECT s.id, s.patient_id, p.therapist_id FROM sessions s JOIN patients p ON s.patient_id = p.id WHERE s.id = $1',
+      [sessionId]
+    );
+    
+    if (sessionCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found'
+      });
+    }
+    
+    const sessionData = sessionCheck.rows[0];
+    const { role, userId } = req.user;
+    
+    // Check access permissions
+    if (role !== 'Owner' && sessionData.therapist_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied'
+      });
+    }
+    
+    // Fetch raw anxiety profiles data
+    const rawDataQuery = `
+      SELECT 
+        recorded_at,
+        vr_state,
+        difficulty,
+        heart_rate,
+        stress_score
+      FROM anxiety_profiles 
+      WHERE session_id = $1
+      ORDER BY recorded_at ASC
+    `;
+    
+    const rawDataResult = await pool.query(rawDataQuery, [sessionId]);
+    const rawData = rawDataResult.rows;
+    
+    if (rawData.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          timeSeriesData: [],
+          timeInRangeDistribution: {
+            relaxed: 0,
+            moderate: 0,
+            panic: 0
+          }
+        }
+      });
+    }
+    
+    // Downsample data into 30-second windows
+    const timeSeriesData = downsampleData(rawData, 30000); // 30 seconds in milliseconds
+    
+    // Calculate time-in-range distribution
+    const timeInRangeDistribution = calculateTimeInRange(rawData);
+    
+    res.json({
+      success: true,
+      data: {
+        timeSeriesData,
+        timeInRangeDistribution
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching session analytics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+// Helper function to downsample data into time windows
+function downsampleData(data, windowSizeMs) {
+  if (!data || data.length === 0) return [];
+  
+  const downsampled = [];
+  const startTime = new Date(data[0].recorded_at).getTime();
+  
+  let currentWindow = Math.floor((new Date(data[0].recorded_at).getTime() - startTime) / windowSizeMs);
+  let windowData = [];
+  
+  for (const point of data) {
+    const pointTime = new Date(point.recorded_at).getTime();
+    const window = Math.floor((pointTime - startTime) / windowSizeMs);
+    
+    if (window !== currentWindow) {
+      // Process previous window
+      if (windowData.length > 0) {
+        downsampled.push(processWindow(windowData));
+      }
+      
+      // Start new window
+      currentWindow = window;
+      windowData = [point];
+    } else {
+      windowData.push(point);
+    }
+  }
+  
+  // Process last window
+  if (windowData.length > 0) {
+    downsampled.push(processWindow(windowData));
+  }
+  
+  return downsampled;
+}
+
+// Helper function to process a window of data
+function processWindow(windowData) {
+  const avgHeartRate = windowData.reduce((sum, point) => sum + (point.heart_rate || 0), 0) / windowData.length;
+  const avgStressScore = windowData.reduce((sum, point) => sum + (point.stress_score || 0), 0) / windowData.length;
+  
+  // Find dominant VR state (most frequent)
+  const vrStateCounts = {};
+  let dominantVrState = windowData[0].vr_state;
+  let maxCount = 0;
+  
+  for (const point of windowData) {
+    const state = point.vr_state;
+    vrStateCounts[state] = (vrStateCounts[state] || 0) + 1;
+    if (vrStateCounts[state] > maxCount) {
+      maxCount = vrStateCounts[state];
+      dominantVrState = state;
+    }
+  }
+  
+  return {
+    timestamp: windowData[0].recorded_at,
+    avgHeartRate: Math.round(avgHeartRate),
+    avgStressScore: Math.round(avgStressScore),
+    vrState: dominantVrState,
+    difficulty: windowData[0].difficulty,
+    dataPoints: windowData.length
+  };
+}
+
+// Helper function to calculate time-in-range distribution
+function calculateTimeInRange(data) {
+  if (!data || data.length === 0) {
+    return { relaxed: 0, moderate: 0, panic: 0 };
+  }
+  
+  let relaxedTime = 0;
+  let moderateTime = 0;
+  let panicTime = 0;
+  
+  for (let i = 0; i < data.length - 1; i++) {
+    const currentPoint = data[i];
+    const nextPoint = data[i + 1];
+    const stressScore = currentPoint.stress_score || 0;
+    
+    // Calculate time duration between points (in seconds)
+    const currentTime = new Date(currentPoint.recorded_at).getTime();
+    const nextTime = new Date(nextPoint.recorded_at).getTime();
+    const duration = (nextTime - currentTime) / 1000; // Convert to seconds
+    
+    // Categorize based on stress score
+    if (stressScore < 40) {
+      relaxedTime += duration;
+    } else if (stressScore <= 75) {
+      moderateTime += duration;
+    } else {
+      panicTime += duration;
+    }
+  }
+  
+  const totalTime = relaxedTime + moderateTime + panicTime;
+  
+  return {
+    relaxed: totalTime > 0 ? Math.round((relaxedTime / totalTime) * 100) : 0,
+    moderate: totalTime > 0 ? Math.round((moderateTime / totalTime) * 100) : 0,
+    panic: totalTime > 0 ? Math.round((panicTime / totalTime) * 100) : 0
+  };
+}
+
 module.exports = {
   getAllPatients,
   getPatientById,
   createPatient,
-  updatePatient
+  updatePatient,
+  completeSession,
+  getPatientSessions,
+  getSessionAnalytics
 };

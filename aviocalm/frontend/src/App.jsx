@@ -10,6 +10,7 @@ import AddPatientForm from './components/add-patient-form/add-patient-form';
 import PatientProfile from './components/patient-profile/patient-profile';
 import ActiveMonitor from './components/active-monitor/ActiveMonitor';
 import PatientInsights from './components/analytics/PatientInsights';
+import TeamManagement from './components/admin/team-management';
 
 // Placeholder components for routes that don't exist yet
 const GlobalStats = () => <div className="p-8"><h1 className="text-2xl font-bold">Global Stats</h1><p>Coming soon...</p></div>;
@@ -32,7 +33,7 @@ function PublicRoute({ children }) {
   // If authenticated, redirect to appropriate dashboard
   if (isAuthenticated && !user?.isFirstLogin) {
     if (user?.role === 'Owner') {
-      return <Navigate to="/admin/global-stats" replace />;
+      return <Navigate to="/admin/team-management" replace />;
     } else if (user?.role === 'Therapist') {
       return <Navigate to="/patients" replace />;
     }
@@ -96,7 +97,7 @@ function AppContent() {
   // Base route redirect logic
   if (isAuthenticated && !user?.isFirstLogin) {
     if (user?.role === 'Owner') {
-      return <Navigate to="/admin/global-stats" replace />;
+      return <Navigate to="/admin/team-management" replace />;
     } else if (user?.role === 'Therapist') {
       return <Navigate to="/patients" replace />;
     }
@@ -150,20 +151,13 @@ function App() {
             <Route index element={<ActiveMonitor />} />
           </Route>
 
-          <Route path="/analytics/patient-insights" element={
-            <ProtectedRoute>
-              <AuthenticatedLayout />
-            </ProtectedRoute>
-          }>
-            <Route index element={<PatientInsights />} />
-          </Route>
-
-          <Route path="/admin/global-stats" element={
+          
+          <Route path="/admin/team-management" element={
             <ProtectedRoute requiredRole="Owner">
               <AuthenticatedLayout />
             </ProtectedRoute>
           }>
-            <Route index element={<GlobalStats />} />
+            <Route index element={<TeamManagement />} />
           </Route>
 
           {/* Catch-all 404 */}

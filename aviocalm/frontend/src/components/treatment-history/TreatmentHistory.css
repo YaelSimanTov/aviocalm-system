@@ -1,0 +1,467 @@
+/* Treatment History Component Styles */
+
+.treatment-history {
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+
+/* Loading States */
+.treatment-history__loading,
+.treatment-history__analytics-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.treatment-history__spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.treatment-history__spinner-icon {
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+
+.treatment-history__spinner-circle {
+  stroke: #3b82f6;
+  stroke-linecap: round;
+  animation: dash 1.5s ease-in-out infinite;
+}
+
+.treatment-history__spinner-path {
+  fill: #3b82f6;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes dash {
+  0% {
+    stroke-dasharray: 1, 150;
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dasharray: 90, 150;
+    stroke-dashoffset: -35;
+  }
+  100% {
+    stroke-dasharray: 90, 150;
+    stroke-dashoffset: -124;
+  }
+}
+
+/* Error States */
+.treatment-history__error,
+.treatment-history__analytics-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+}
+
+.treatment-history__error-title {
+  color: #dc2626;
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.treatment-history__retry-btn {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.treatment-history__retry-btn:hover {
+  background: #2563eb;
+}
+
+/* Sections */
+.treatment-history__sessions-section {
+  margin-bottom: 32px;
+}
+
+.treatment-history__section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Empty State */
+.treatment-history__empty-state {
+  background: white;
+  border-radius: 8px;
+  padding: 40px;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.treatment-history__empty-title {
+  color: #6b7280;
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.treatment-history__empty-message {
+  color: #9ca3af;
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Table Styles */
+.treatment-history__table-container {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.treatment-history__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.treatment-history__table th {
+  background: #f8f9fa;
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.treatment-history__table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.treatment-history__table-row:hover {
+  background: #f9fafb;
+}
+
+.treatment-history__table-cell {
+  color: #374151;
+}
+
+/* Status Indicators */
+.treatment-history__status {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-block;
+}
+
+.status-completed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-in-progress {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-halted {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-unknown {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+/* Buttons */
+.treatment-history__view-btn {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s;
+}
+
+.treatment-history__view-btn:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.treatment-history__view-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+/* Analytics Section */
+.treatment-history__analytics-section {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.treatment-history__analytics-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.treatment-history__close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.treatment-history__close-btn:hover {
+  background: #f3f4f6;
+}
+
+.treatment-history__analytics-content {
+  display: grid;
+  gap: 24px;
+}
+
+/* Chart Containers */
+.treatment-history__chart-container {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.treatment-history__chart-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 16px 0;
+}
+
+.treatment-history__chart-placeholder {
+  background: white;
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  padding: 40px;
+  text-align: center;
+  color: #6b7280;
+}
+
+.treatment-history__chart-info {
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.treatment-history__chart-data {
+  margin-top: 16px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #374151;
+}
+
+/* Custom Tooltip Styling */
+.custom-tooltip {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 8px 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.tooltip-time {
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 4px 0;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 4px;
+}
+
+.tooltip-metric {
+  margin: 2px 0;
+  color: #4b5563;
+}
+
+.tooltip-state {
+  margin: 4px 0 2px 0;
+  color: #3b82f6;
+  font-weight: 500;
+}
+
+.tooltip-difficulty {
+  margin: 2px 0 0 0;
+  color: #8b5cf6;
+  font-weight: 500;
+}
+
+/* Pie Chart Styles */
+.treatment-history__pie-chart-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.treatment-history__pie-legend {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.treatment-history__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #374151;
+}
+
+.treatment-history__legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.treatment-history__legend-color.relaxed {
+  background: #10b981;
+}
+
+.treatment-history__legend-color.moderate {
+  background: #f59e0b;
+}
+
+.treatment-history__legend-color.panic {
+  background: #ef4444;
+}
+
+/* Session Summary */
+.treatment-history__session-summary {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.treatment-history__summary-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 16px 0;
+}
+
+.treatment-history__summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.treatment-history__summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.treatment-history__summary-label {
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.treatment-history__summary-value {
+  font-size: 16px;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .treatment-history {
+    padding: 16px;
+  }
+
+  .treatment-history__table-container {
+    overflow-x: auto;
+  }
+
+  .treatment-history__table {
+    min-width: 600px;
+  }
+
+  .treatment-history__analytics-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .treatment-history__pie-legend {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .treatment-history__summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .treatment-history__table th,
+  .treatment-history__table td {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .treatment-history__view-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .treatment-history__chart-placeholder {
+    padding: 24px;
+  }
+}

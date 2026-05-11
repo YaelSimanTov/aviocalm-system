@@ -7,10 +7,6 @@ import {
   Users, 
   UserPlus, 
   Activity, 
-  Brain, 
-  BarChart3, 
-  Network, 
-  Calendar, 
   Shield, 
   Settings, 
   LogOut,
@@ -115,67 +111,8 @@ export const Sidebar = ({ onToggleCollapse }) => {
                   <span className="sidebar__text">Active Monitor</span>
                 </div>
               </Link>
-              <Link 
-                to="/ai-insights" 
-                className="sidebar__item"
-              >
-                <div className="sidebar__item-content">
-                  <Brain className="sidebar__item-icon" />
-                  <span className="sidebar__text">AI Insights</span>
-                </div>
-              </Link>
             </div>
           )}
-        </div>
-
-        {/* Analytics Group */}
-        <div className="sidebar__group">
-          <button 
-            className="sidebar__group-header"
-            onClick={() => toggleGroup('analytics')}
-          >
-            <BarChart3 className="sidebar__group-icon" />
-            <span className="sidebar__group-text">Analytics</span>
-            {expandedGroups.analytics ? 
-              <ChevronDown className="sidebar__group-chevron" /> : 
-              <ChevronRight className="sidebar__group-chevron" />
-            }
-          </button>
-          {expandedGroups.analytics && (
-            <div className="sidebar__group-items">
-              <Link 
-                to="/analytics/patient-insights" 
-                className="sidebar__item"
-              >
-                <div className="sidebar__item-content">
-                  <BarChart3 className="sidebar__item-icon" />
-                  <span className="sidebar__text">Patient Insights</span>
-                </div>
-              </Link>
-              <Link 
-                to="/patient-clusters" 
-                className="sidebar__item"
-              >
-                <div className="sidebar__item-content">
-                  <Network className="sidebar__item-icon" />
-                  <span className="sidebar__text">Clinical Cohorts</span>
-                </div>
-              </Link>
-            </div>
-          )}
-        </div>
-
-        {/* Calendar */}
-        <div className="sidebar__section">
-          <Link 
-            to="/calendar" 
-            className="sidebar__item"
-          >
-            <div className="sidebar__item-content">
-              <Calendar className="sidebar__item-icon" />
-              <span className="sidebar__text">Calendar</span>
-            </div>
-          </Link>
         </div>
 
         {/* Admin Group - Owner Only */}
@@ -201,15 +138,6 @@ export const Sidebar = ({ onToggleCollapse }) => {
                   <div className="sidebar__item-content">
                     <Users className="sidebar__item-icon" />
                     <span className="sidebar__text">Team Management</span>
-                  </div>
-                </Link>
-                <Link 
-                  to="/admin/global-stats" 
-                  className="sidebar__item"
-                >
-                  <div className="sidebar__item-content">
-                    <BarChart3 className="sidebar__item-icon" />
-                    <span className="sidebar__text">Global Stats</span>
                   </div>
                 </Link>
               </div>

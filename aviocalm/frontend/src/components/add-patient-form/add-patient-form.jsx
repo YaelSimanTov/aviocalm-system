@@ -288,7 +288,7 @@ export const AddPatientForm = () => {
                   className={`add-patient-form__input ${
                     errors.date_of_birth ? 'add-patient-form__input--error' : ''
                   }`}
-                  value={formData.date_of_birth}
+                  value={formData.date_of_birth ? formData.date_of_birth.split('T')[0] : ''}
                   onChange={handleChange}
                 />
                 {errors.date_of_birth && (
@@ -449,19 +449,7 @@ export const AddPatientForm = () => {
                   isLoading ? 'add-patient-form__button--loading' : ''
                 }`}
               >
-                {isLoading ? (
-                  <>
-                    <div className="add-patient-form__spinner">
-                      <svg className="add-patient-form__spinner-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="add-patient-form__spinner-circle" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="add-patient-form__spinner-path" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 018 5.291 0 12h4z"></path>
-                      </svg>
-                      Creating Patient...
-                    </div>
-                  </>
-                ) : (
-                  'Create Patient'
-                )}
+                {isLoading ? 'Creating Patient...' : 'Create Patient'}
               </button>
             </div>
           </div>

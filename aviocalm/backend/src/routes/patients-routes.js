@@ -5,7 +5,10 @@ const {
   getAllPatients, 
   getPatientById, 
   createPatient,
-  updatePatient 
+  updatePatient,
+  completeSession,
+  getPatientSessions,
+  getSessionAnalytics
 } = require('../controllers/patients-controller');
 
 // All patient routes require authentication
@@ -22,5 +25,14 @@ router.post('/', createPatient);
 
 // PUT /api/patients/:id - Update patient by ID (role-based)
 router.put('/:id', updatePatient);
+
+// POST /api/sessions/:sessionId/complete - Complete session with HRV calculation
+router.post('/sessions/:sessionId/complete', completeSession);
+
+// GET /api/patients/:patientId/sessions - Get patient sessions list
+router.get('/:patientId/sessions', getPatientSessions);
+
+// GET /api/sessions/:sessionId/analytics - Get session analytics with downsampling
+router.get('/sessions/:sessionId/analytics', getSessionAnalytics);
 
 module.exports = router;

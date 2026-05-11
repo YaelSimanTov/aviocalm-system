@@ -4,7 +4,9 @@
  * Centralizes all mock data logic for easy cleanup when real hardware arrives
  */
 
+const { v4: uuidv4 } = require('uuid');
 const { processSceneCompletion } = require('./clinicalScoringService');
+const { createSession, updateSession, completeSessionWithHRV } = require('../db/dbManager');
 
 class MockDataSimulator {
   constructor(io) {
@@ -14,10 +16,12 @@ class MockDataSimulator {
     
     // Scene tracking for clinical scoring
     this.currentSceneMetrics = [];
-    this.currentVrState = 'Boarding';
+    this.currentVrState = 'BoardingState';
     this.currentDifficulty = 'Easy';
-    this.sessionId = `session_${Date.now()}`;
-    this.patientId = '123456789'; // Mock patient national_id
+    this.sessionId = null; // Will be set when session is created
+    this.patientId = null; // Will be fetched from database
+    this.patientUuid = null; // Patient UUID for session table
+    this.sessionStartTime = null;
     
     // Baseline values for realistic simulation
     this.baseline = {
@@ -31,13 +35,13 @@ class MockDataSimulator {
       heartRate: this.baseline.heartRate,
       stressScore: this.baseline.stressScore,
       spo2: this.baseline.spo2,
-      vrState: 'Boarding',
+      vrState: 'BoardingState',
       difficulty: 'Easy'
     };
     
-    // VR states for realistic progression
-    this.vrStates = ['Boarding', 'Takeoff', 'Cruising', 'Landing', 'Taxiing'];
-    this.difficulties = ['Easy', 'Medium', 'Hard'];
+    // VR states matching exact game design flow
+    this.vrStates = ['BoardingState', 'TakeOffState', 'InFlightState', 'LandingState', 'LandedState', 'PausedState'];
+    this.difficulties = ['None', 'Easy', 'Medium', 'Hard'];
     this.currentStateIndex = 0;
     this.currentDifficultyIndex = 0;
     
@@ -47,16 +51,81 @@ class MockDataSimulator {
   }
 
   /**
-   * Start the mock data simulation
+   * Fetch a valid patient from database for simulation
+   */
+  async fetchValidPatient() {
+    try {
+      console.log('[MOCK SIMULATOR] Fetching valid patient for simulation...');
+      
+      // Query to get an existing patient (use our test patient)
+      const { Pool } = require('pg');
+      const pool = new Pool({
+        user: 'postgres',
+        host: 'localhost',
+        database: 'aviocalm',
+        password: 'postgres',
+        port: 5433,
+      });
+      
+      const result = await pool.query('SELECT id, national_id FROM patients WHERE national_id = $1 LIMIT 1', ['123456789']);
+      
+      if (result.rows.length === 0) {
+        throw new Error('No test patient found. Please run the seeder first.');
+      }
+      
+      this.patientUuid = result.rows[0].id; // UUID for session table
+      this.patientId = result.rows[0].national_id; // national_id for anxiety_profiles
+      
+      console.log(`[MOCK SIMULATOR] Using patient: ${this.patientId} (UUID: ${this.patientUuid})`);
+      
+      await pool.end();
+    } catch (error) {
+      console.error('[MOCK SIMULATOR] Error fetching patient:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a real session in database
+   */
+  async createDatabaseSession() {
+    try {
+      console.log('[MOCK SIMULATOR] Creating a new session in database...');
+      
+      const sessionData = {
+        patientId: this.patientUuid,
+        startedAt: new Date().toISOString(),
+        status: 'In Progress'
+      };
+      
+      const sessionId = await createSession(sessionData);
+      this.sessionId = sessionId;
+      
+      console.log(`[MOCK SIMULATOR] Created session: ${sessionId}`);
+    } catch (error) {
+      console.error('[MOCK SIMULATOR] Error creating session:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Start mock data simulation
    * Emits realistic biometric data every second
    */
-  start() {
+  async start() {
     if (this.isRunning) {
       console.log('[MOCK SIMULATOR] Already running');
       return;
     }
 
     console.log('[MOCK SIMULATOR] Starting mock data generation...');
+    
+    // Step 1: Fetch valid patient
+    await this.fetchValidPatient();
+    
+    // Step 2: Create a real session in database
+    await this.createDatabaseSession();
+    
     this.isRunning = true;
     
     // Emit initial connection status
@@ -69,9 +138,9 @@ class MockDataSimulator {
   }
 
   /**
-   * Stop the mock data simulation
+   * Stop mock data simulation and complete session
    */
-  stop() {
+  async stop() {
     if (!this.isRunning) {
       console.log('[MOCK SIMULATOR] Already stopped');
       return;
@@ -83,6 +152,20 @@ class MockDataSimulator {
     if (this.simulationInterval) {
       clearInterval(this.simulationInterval);
       this.simulationInterval = null;
+    }
+    
+    // Step 1: Process final scene if there's remaining data
+    if (this.currentSceneMetrics.length > 0) {
+      await this.processCompletedScene(this.current.vrState, this.current.difficulty);
+    }
+    
+    // Step 2: Complete the session with HRV calculation
+    if (this.sessionId) {
+      try {
+        await this.completeSession();
+      } catch (error) {
+        console.error('[MOCK SIMULATOR] Error completing session:', error);
+      }
     }
     
     // Emit disconnection status
@@ -127,7 +210,7 @@ class MockDataSimulator {
     const spo2Noise = (Math.random() - 0.5) * 1; // ±0.5% SpO2 noise
     
     const mockData = {
-      sessionId: `session_${Date.now()}`,
+      sessionId: this.sessionId, // Use existing class instance UUID
       timestamp: new Date().toISOString(),
       vitals: {
         heartRate: Math.round(this.current.heartRate + heartRateNoise),
@@ -255,6 +338,23 @@ class MockDataSimulator {
   }
 
   /**
+   * Complete the session with HRV calculation
+   */
+  async completeSession() {
+    try {
+      console.log('[MOCK SIMULATOR] Completing session with HRV calculation...');
+      
+      // Use the completeSessionWithHRV function from dbManager
+      await completeSessionWithHRV(this.sessionId);
+      
+      console.log(`[MOCK SIMULATOR] Session ${this.sessionId} completed successfully`);
+    } catch (error) {
+      console.error('[MOCK SIMULATOR] Error completing session:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get current simulation status
    */
   getStatus() {
@@ -279,17 +379,17 @@ module.exports = {
     }
     return mockSimulator;
   },
-  startMockSimulation: () => {
+  startMockSimulation: async () => {
     if (!mockSimulator) {
       throw new Error('Mock simulator not initialized. Call initializeMockSimulator(io) first.');
     }
-    mockSimulator.start();
+    await mockSimulator.start();
   },
-  stopMockSimulation: () => {
+  stopMockSimulation: async () => {
     if (!mockSimulator) {
       throw new Error('Mock simulator not initialized. Call initializeMockSimulator(io) first.');
     }
-    mockSimulator.stop();
+    await mockSimulator.stop();
   },
   getMockSimulationStatus: () => {
     if (!mockSimulator) {

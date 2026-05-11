@@ -440,6 +440,18 @@
   box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1) !important;
 }
 
+.patient-profile__input--disabled {
+  background-color: #f3f4f6 !important;
+  color: #9ca3af !important;
+  cursor: not-allowed !important;
+  border-color: #e5e7eb !important;
+}
+
+.patient-profile__input--disabled:hover {
+  border-color: #e5e7eb !important;
+  box-shadow: none !important;
+}
+
 .patient-profile__error-text {
   color: #dc2626;
   font-size: 0.75rem;
