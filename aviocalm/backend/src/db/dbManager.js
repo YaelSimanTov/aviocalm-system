@@ -235,6 +235,73 @@ async function completeSessionWithHRV(sessionId, completionData = {}) {
 }
 
 /**
+ * Inserts a treatment decision record into the database
+ * Part of Epic 4.3: Asynchronous Recommendation & Audit
+ * @param {Object} treatmentDecision - The treatment decision object
+ * @param {string} treatmentDecision.session_id - Session ID
+ * @param {string} treatmentDecision.patient_id - Patient ID
+ * @param {number} treatmentDecision.suggested_difficulty - System-recommended difficulty (1-5)
+ * @param {number} treatmentDecision.actual_difficulty_selected_by_patient - Patient's selected difficulty (1-5)
+ * @param {string} treatmentDecision.system_timestamp - Timestamp when system made the recommendation
+ */
+async function insertTreatmentDecision(treatmentDecision) {
+    const query = `
+        INSERT INTO treatment_decisions 
+        (session_id, patient_id, suggested_difficulty, actual_difficulty_selected_by_patient, system_timestamp)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING decision_id
+    `;
+    
+    const values = [
+        treatmentDecision.session_id,
+        treatmentDecision.patient_id,
+        treatmentDecision.suggested_difficulty,
+        treatmentDecision.actual_difficulty_selected_by_patient,
+        treatmentDecision.system_timestamp
+    ];
+
+    try {
+        const result = await pool.query(query, values);
+        console.log(`[DB] Treatment decision saved with ID: ${result.rows[0].decision_id}`);
+        return result.rows[0].decision_id;
+    } catch (error) {
+        console.error('[DB ERROR] Failed to insert treatment decision:', error);
+        throw error;
+    }
+}
+
+/**
+ * Fetches treatment decisions for a specific session
+ * Part of Epic 4.3: Asynchronous Recommendation & Audit
+ * @param {string} sessionId - Session ID
+ * @returns {Promise<Array>} Array of treatment decision records
+ */
+async function getTreatmentDecisionsBySession(sessionId) {
+    const query = `
+        SELECT 
+            decision_id,
+            session_id,
+            patient_id,
+            suggested_difficulty,
+            actual_difficulty_selected_by_patient,
+            system_timestamp,
+            created_at
+        FROM treatment_decisions
+        WHERE session_id = $1
+        ORDER BY system_timestamp ASC
+    `;
+    
+    try {
+        const result = await pool.query(query, [sessionId]);
+        console.log(`[DB] Found ${result.rows.length} treatment decisions for session ${sessionId}`);
+        return result.rows;
+    } catch (error) {
+        console.error('[DB ERROR] Failed to fetch treatment decisions:', error);
+        throw error;
+    }
+}
+
+/**
  * Calculates HRV RMSSD from heart rate intervals (Legacy function - kept for compatibility)
  * @param {Array} heartRateValues - Array of heart rate measurements
  * @deprecated Use calculateRMSSD from hrvCalculator service instead
@@ -252,5 +319,7 @@ module.exports = {
     getPatientTreatmentHistory,
     calculateSessionHRV,
     completeSessionWithHRV,
-    calculateHRVRmssd
+    calculateHRVRmssd,
+    insertTreatmentDecision,
+    getTreatmentDecisionsBySession
 };

@@ -181,15 +181,15 @@ As a therapist, I want early warnings regarding rising stress trends so I can pr
 * **FE:** Trend Indicator arrow next to the metric showing stable, rising, or falling.
 * **UX (UI Location & Navigation):** The Level 1 Alert will pop up in the Global Header. The Trend Indicator arrow will be displayed next to the metrics on the 🥽 Live Session -> Active Monitor page.
 
-**User Story 4.3: Progression Heuristics**
-As a therapist, I want a data-driven recommendation on whether the patient is ready for higher exposure.
-**Tasks:**
-* **BE Logic (Weighted Scoring):** Algorithm analyzing the Recovery Rate (return to Baseline) at the end of each stage.
-* **BE Logic (Patient Profiling):** Statistical classification mapping the patient to a behavioral profile (e.g., "fast responder").
-* **FE UI (Recommendation):** Display a "Recommendation Card" at the end of a VR room with traffic-light colors (Green: Proceed / Yellow: Repeat stage).
-* **FE (Feedback Loop):** Add "Agree/Disagree" buttons next to the recommendation to collect professional feedback (Human in the loop).
-* **DB:** Save decisions (recommendation vs. actual action) in a `TreatmentDecisions` table.
-* **UX (UI Location & Navigation):** The Recommendation card and feedback buttons (Agree/Disagree) will be located in the 🥽 Live Session -> AI Insights sub-page.
+**User Story 4.3: Asynchronous Recommendation & Audit**
+**As a** therapist, **I want** the system to document real-time recommendations given to the patient (even when I am not present for at-home sessions), **so that** I can review a comparison between the system's recommendation and the action the patient actually took.
+
+**Tasks / Acceptance Criteria:**
+* **BE/VR Logic (Autonomous Guidance):** Develop a decision-making mechanism running on the VR headset at the end of each flight phase. The system must analyze HRV and Heart Rate and present an automated recommendation to the patient (e.g., "Metrics indicate high stress; it is not recommended to advance to Hard difficulty right now").
+* **DB (Recommendation Audit Log):** Update the `TreatmentDecisions` table. Whenever a recommendation is generated, the system must log: `SuggestedDifficulty`, `ActualDifficultySelectedByPatient`, and `SystemTimestamp`. This allows the therapist to see if the patient pushed themselves beyond the recommended limits.
+* **BE (Multi-Difficulty Session Mapping):** Adjust the data structure so a single session can contain an array of `DifficultyLevels`. (Existing SQL queries support this using `json_agg`), allowing the therapist to view a single chronological chart that transitions from Easy to Hard within the same time sequence.
+* **UX (Executive Summary Alert):** Add a prominent visual indicator (e.g., a ⚠️ icon or red/orange text) inside the Session Summary Card. This must appear ONLY if the patient deviated from the system's recommendations (e.g., "Patient ignored system recommendations 2 times").
+* **UX (In-Chart Annotation):** Add a specific Marker/Annotation on the chart at the exact timestamp where the patient chose to ignore the recommendation. This allows the therapist to instantly observe how this decision impacted the patient's HR/HRV in the minutes that followed.
 
 ---
 

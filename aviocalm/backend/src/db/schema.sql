@@ -111,6 +111,32 @@ CREATE TABLE patient_baselines (
     calibrated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Treatment Decisions Table (Epic 4.3 - Asynchronous Recommendation & Audit)
+-- Logs system recommendations vs. patient's actual difficulty selections
+CREATE TABLE treatment_decisions (
+    decision_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    patient_id UUID NOT NULL REFERENCES patients(id),
+    suggested_difficulty INTEGER NOT NULL CHECK (suggested_difficulty >= 1 AND suggested_difficulty <= 5),
+    actual_difficulty_selected_by_patient INTEGER NOT NULL CHECK (actual_difficulty_selected_by_patient >= 1 AND actual_difficulty_selected_by_patient <= 5),
+    system_timestamp TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Session Difficulty Levels Table (Epic 4.3 - Multi-Difficulty Session Mapping)
+-- Stores individual difficulty levels within a single session for chronological tracking
+CREATE TABLE session_difficulty_levels (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    difficulty_level VARCHAR(50) NOT NULL CHECK (difficulty_level IN ('Easy', 'Medium', 'Hard', 'None')),
+    vr_state VARCHAR(50) NOT NULL,
+    started_at TIMESTAMP NOT NULL,
+    ended_at TIMESTAMP,
+    duration_seconds INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 
 -- Create indexes for better performance
 CREATE INDEX idx_users_username ON users(username);
@@ -124,6 +150,9 @@ CREATE INDEX idx_anxiety_profiles_timestamp ON anxiety_profiles(recorded_at);
 CREATE INDEX idx_scene_stress_scores_patient ON scene_stress_scores(patient_id);
 CREATE INDEX idx_scene_stress_scores_session ON scene_stress_scores(session_id);
 CREATE INDEX idx_scene_stress_scores_vrstate ON scene_stress_scores(vr_state);
+CREATE INDEX idx_treatment_decisions_session ON treatment_decisions(session_id);
+CREATE INDEX idx_treatment_decisions_patient ON treatment_decisions(patient_id);
+CREATE INDEX idx_session_difficulty_levels_session ON session_difficulty_levels(session_id);
 
 -- Insert default owner user (admin / Admin123!)
 -- Password: Admin123! (meets requirements: 8+ chars, uppercase, lowercase, special, number)

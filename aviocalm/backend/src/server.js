@@ -6,7 +6,7 @@ const { Server } = require('socket.io');
 require('dotenv').config();
 
 // Database manager for saving IoT/VR data
-const { insertAnxietyProfile, initializeDatabase } = require('./db/dbManager');
+const { insertAnxietyProfile, initializeDatabase, insertTreatmentDecision } = require('./db/dbManager');
 
 // Mock data simulator for centralized mock data generation
 const { initializeMockSimulator, startMockSimulation, stopMockSimulation, getMockSimulationStatus } = require('./services/mockDataSimulator');
@@ -186,6 +186,35 @@ io.on('connection', async (socket) => {
             currentSpo2 = BASELINE_SPO2;
             simulationTime = 0;
             console.log(`[SIMULATION] Reset for next VR scene`);
+        }
+    });
+
+    // Handle treatment decision events from VR client (Epic 4.3 - Asynchronous Recommendation & Audit)
+    socket.on('treatment_decision', async (decisionPayload) => {
+        console.log(`[TREATMENT DECISION] Received decision from VR client:`, decisionPayload);
+        
+        try {
+            // Validate required fields
+            if (!decisionPayload.session_id || !decisionPayload.patient_id || 
+                decisionPayload.suggested_difficulty === undefined || 
+                decisionPayload.actual_difficulty_selected_by_patient === undefined ||
+                !decisionPayload.system_timestamp) {
+                console.error('[TREATMENT DECISION] Invalid payload - missing required fields');
+                return;
+            }
+
+            // Insert treatment decision into database
+            await insertTreatmentDecision({
+                session_id: decisionPayload.session_id,
+                patient_id: decisionPayload.patient_id,
+                suggested_difficulty: decisionPayload.suggested_difficulty,
+                actual_difficulty_selected_by_patient: decisionPayload.actual_difficulty_selected_by_patient,
+                system_timestamp: decisionPayload.system_timestamp
+            });
+
+            console.log(`[TREATMENT DECISION] Successfully saved decision for session ${decisionPayload.session_id}`);
+        } catch (error) {
+            console.error('[TREATMENT DECISION] Error saving decision:', error);
         }
     });
 

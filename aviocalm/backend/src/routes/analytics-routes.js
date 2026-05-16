@@ -7,6 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const { getPatientInsights } = require('../services/clinicalScoringService');
+const { getTreatmentDecisionsBySession } = require('../db/dbManager');
 
 /**
  * GET /api/analytics/insights/:patientId
@@ -169,6 +170,48 @@ router.get('/health', (req, res) => {
       timestamp: new Date().toISOString()
     }
   });
+});
+
+/**
+ * GET /api/analytics/treatment-decisions/:sessionId
+ * Fetch treatment decisions for a specific session
+ * Part of Epic 4.3: Asynchronous Recommendation & Audit
+ */
+router.get('/treatment-decisions/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Session ID is required'
+      });
+    }
+
+    console.log(`[ANALYTICS] Fetching treatment decisions for session: ${sessionId}`);
+    
+    // Get treatment decisions from database
+    const treatmentDecisions = await getTreatmentDecisionsBySession(sessionId);
+    
+    res.json({
+      success: true,
+      data: {
+        sessionId: sessionId,
+        treatmentDecisions: treatmentDecisions,
+        totalDecisions: treatmentDecisions.length
+      },
+      message: 'Treatment decisions retrieved successfully'
+    });
+    
+  } catch (error) {
+    console.error('[ANALYTICS] Error fetching treatment decisions:', error);
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve treatment decisions',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
 });
 
 module.exports = router;

@@ -435,33 +435,42 @@ const getPatientSessions = async (req, res) => {
       });
     }
     
-    // Query sessions for patient with difficulty levels
+    // Query sessions for patient with difficulty levels from session_difficulty_levels table
     const sessionsQuery = `
       SELECT 
         s.id,
         s.started_at,
+        s.ended_at,
         s.duration_minutes,
         s.overall_hrv_rmssd,
         s.status,
         COALESCE(
-          json_agg(DISTINCT ap.difficulty) FILTER (WHERE ap.difficulty IS NOT NULL),
+          json_agg(
+            json_build_object(
+              'difficulty_level', sdl.difficulty_level,
+              'started_at', sdl.started_at,
+              'ended_at', sdl.ended_at,
+              'duration_seconds', sdl.duration_seconds,
+              'vr_state', sdl.vr_state
+            ) ORDER BY sdl.started_at ASC
+          ) FILTER (WHERE sdl.id IS NOT NULL),
           '[]'::json
-        ) as difficulties
+        ) as difficulty_levels
       FROM sessions s
-      LEFT JOIN anxiety_profiles ap ON s.id = ap.session_id
+      LEFT JOIN session_difficulty_levels sdl ON s.id = sdl.session_id
       WHERE s.patient_id = $1
-      GROUP BY s.id, s.started_at, s.duration_minutes, s.overall_hrv_rmssd, s.status
+      GROUP BY s.id, s.started_at, s.ended_at, s.duration_minutes, s.overall_hrv_rmssd, s.status
       ORDER BY s.started_at DESC
     `;
     
     const result = await pool.query(sessionsQuery, [patientId]);
     
-    // Debug: Log the results to verify difficulties array
+    // Debug: Log the results to verify difficulty_levels array
     console.log('Sessions query result for patient', patientId, ':', result.rows.map(row => ({
       id: row.id,
-      difficulties: row.difficulties,
-      difficultiesType: typeof row.difficulties,
-      difficultiesLength: Array.isArray(row.difficulties) ? row.difficulties.length : 'not array'
+      difficulty_levels: row.difficulty_levels,
+      difficulty_levelsType: typeof row.difficulty_levels,
+      difficulty_levelsLength: Array.isArray(row.difficulty_levels) ? row.difficulty_levels.length : 'not array'
     })));
     
     res.json({

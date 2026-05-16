@@ -58,6 +58,11 @@ export const TreatmentHistory = ({ patientId }) => {
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [error, setError] = useState('');
   const [analyticsError, setAnalyticsError] = useState('');
+  
+  // State for treatment decisions (Epic 4.3 - Asynchronous Recommendation & Audit)
+  const [treatmentDecisions, setTreatmentDecisions] = useState([]);
+  const [treatmentDecisionsLoading, setTreatmentDecisionsLoading] = useState(false);
+  const [treatmentDecisionsError, setTreatmentDecisionsError] = useState('');
 
   // Fetch patient sessions on component mount
   useEffect(() => {
@@ -106,6 +111,26 @@ export const TreatmentHistory = ({ patientId }) => {
     }
   };
 
+  // Fetch treatment decisions for a session (Epic 4.3 - Asynchronous Recommendation & Audit)
+  const fetchTreatmentDecisions = async (sessionId) => {
+    try {
+      setTreatmentDecisionsLoading(true);
+      setTreatmentDecisionsError('');
+      
+      const result = await apiRequest(`/analytics/treatment-decisions/${sessionId}`);
+      
+      if (result.success) {
+        setTreatmentDecisions(result.data.treatmentDecisions);
+      } else {
+        setTreatmentDecisionsError(result.error || 'Failed to fetch treatment decisions');
+      }
+    } catch (error) {
+      setTreatmentDecisionsError('Network error. Please try again.');
+    } finally {
+      setTreatmentDecisionsLoading(false);
+    }
+  };
+
   // Handle session drill-down
   const handleViewRecord = (session) => {
     console.log("Session selected:", session.id);
@@ -116,6 +141,9 @@ export const TreatmentHistory = ({ patientId }) => {
     
     // Fetch analytics data
     fetchSessionAnalytics(session.id);
+    
+    // Fetch treatment decisions for executive summary alert (Epic 4.3)
+    fetchTreatmentDecisions(session.id);
   };
 
   // Format date for display
@@ -194,6 +222,20 @@ export const TreatmentHistory = ({ patientId }) => {
     
     const avgHR = analyticsData.timeSeriesData.reduce((sum, point) => sum + point.avgHeartRate, 0) / analyticsData.timeSeriesData.length;
     return Math.round(avgHR);
+  };
+
+  // Calculate the number of times patient ignored system recommendations (Epic 4.3)
+  const calculateRecommendationViolations = () => {
+    if (!treatmentDecisions || treatmentDecisions.length === 0) {
+      return 0;
+    }
+    
+    // Count instances where patient selected higher difficulty than recommended
+    const violationCount = treatmentDecisions.filter(
+      decision => decision.actual_difficulty_selected_by_patient > decision.suggested_difficulty
+    ).length;
+    
+    return violationCount;
   };
 
   // Render loading state
@@ -494,6 +536,23 @@ export const TreatmentHistory = ({ patientId }) => {
               {/* Session Summary */}
               <div className="treatment-history__session-summary">
                 <h4 className="treatment-history__summary-title">Session Summary</h4>
+                
+                {/* Executive Summary Alert - Epic 4.3: Asynchronous Recommendation & Audit */}
+                {(() => {
+                  const violationCount = calculateRecommendationViolations();
+                  if (violationCount > 0) {
+                    return (
+                      <div className="treatment-history__executive-alert">
+                        <span className="treatment-history__alert-icon">⚠️</span>
+                        <span className="treatment-history__alert-text">
+                          Patient ignored system recommendations {violationCount} time{violationCount !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                
                 <div className="treatment-history__summary-grid">
                   <div className="treatment-history__summary-item">
                     <span className="treatment-history__summary-label">Total Data Points:</span>
