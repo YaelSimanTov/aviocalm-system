@@ -6,7 +6,7 @@
 
 const { v4: uuidv4 } = require('uuid');
 const { processSceneCompletion } = require('./clinicalScoringService');
-const { createSession, updateSession, completeSessionWithHRV } = require('../db/dbManager');
+const { createSession, updateSession, completeSessionWithHRV, insertTreatmentDecision } = require('../db/dbManager');
 
 class MockDataSimulator {
   constructor(io) {
@@ -100,10 +100,110 @@ class MockDataSimulator {
       
       const sessionId = await createSession(sessionData);
       this.sessionId = sessionId;
+      this.sessionStartTime = new Date();
       
       console.log(`[MOCK SIMULATOR] Created session: ${sessionId}`);
+      
+      // Generate mock session difficulty levels (Epic 4.3)
+      await this.generateMockSessionDifficultyLevels();
+      
+      // Generate mock treatment decisions (Epic 4.3)
+      await this.generateMockTreatmentDecisions();
     } catch (error) {
       console.error('[MOCK SIMULATOR] Error creating session:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate mock session difficulty levels (Epic 4.3 - Multi-Difficulty Session Mapping)
+   * Creates 2-3 difficulty level records spanning the session duration
+   */
+  async generateMockSessionDifficultyLevels() {
+    try {
+      console.log('[MOCK SIMULATOR] Generating mock session difficulty levels...');
+      
+      const { Pool } = require('pg');
+      const pool = new Pool({
+        user: 'postgres',
+        host: 'localhost',
+        database: 'aviocalm',
+        password: 'postgres',
+        port: 5433,
+      });
+      
+      const difficultyLevels = ['Easy', 'Medium', 'Hard'];
+      const vrStates = ['BoardingState', 'TakeOffState', 'InFlightState', 'LandingState'];
+      
+      // Generate 2-3 difficulty level records
+      const numRecords = 2 + Math.floor(Math.random() * 2); // 2-3 records
+      const sessionDuration = 180; // 3 minutes in seconds
+      const segmentDuration = Math.floor(sessionDuration / numRecords);
+      
+      for (let i = 0; i < numRecords; i++) {
+        const startedAt = new Date(this.sessionStartTime.getTime() + (i * segmentDuration * 1000));
+        const endedAt = new Date(this.sessionStartTime.getTime() + ((i + 1) * segmentDuration * 1000));
+        const durationSeconds = segmentDuration;
+        
+        const query = `
+          INSERT INTO session_difficulty_levels 
+          (session_id, difficulty_level, vr_state, started_at, ended_at, duration_seconds)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `;
+        
+        await pool.query(query, [
+          this.sessionId,
+          difficultyLevels[Math.min(i, difficultyLevels.length - 1)],
+          vrStates[Math.min(i, vrStates.length - 1)],
+          startedAt,
+          endedAt,
+          durationSeconds
+        ]);
+        
+        console.log(`[MOCK SIMULATOR] Created difficulty level: ${difficultyLevels[Math.min(i, difficultyLevels.length - 1)]} at ${startedAt.toISOString()}`);
+      }
+      
+      await pool.end();
+      console.log('[MOCK SIMULATOR] Session difficulty levels generated successfully');
+    } catch (error) {
+      console.error('[MOCK SIMULATOR] Error generating session difficulty levels:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate mock treatment decisions (Epic 4.3 - Asynchronous Recommendation & Audit)
+   * Creates 1-2 treatment decision records, with at least one violation
+   */
+  async generateMockTreatmentDecisions() {
+    try {
+      console.log('[MOCK SIMULATOR] Generating mock treatment decisions...');
+      
+      // Generate 1-2 treatment decisions
+      const numDecisions = 1 + Math.floor(Math.random() * 2); // 1-2 decisions
+      
+      for (let i = 0; i < numDecisions; i++) {
+        const decisionTime = new Date(this.sessionStartTime.getTime() + (60 * 1000 * (i + 1))); // 1-2 minutes into session
+        
+        // CRITICAL: Ensure at least one violation (suggested < actual)
+        const isViolation = i === 0; // First decision is always a violation for testing
+        const suggestedDifficulty = isViolation ? 1 : 2; // Suggest Easy or Medium
+        const actualDifficulty = isViolation ? 3 : 2; // Patient selects Hard or Medium (violation if suggested < actual)
+        
+        await insertTreatmentDecision({
+          session_id: this.sessionId,
+          patient_id: this.patientUuid,
+          suggested_difficulty: suggestedDifficulty,
+          actual_difficulty_selected_by_patient: actualDifficulty,
+          system_timestamp: decisionTime.toISOString()
+        });
+        
+        console.log(`[MOCK SIMULATOR] Created treatment decision: Suggested=${suggestedDifficulty}, Selected=${actualDifficulty} ${isViolation ? '(VIOLATION)' : ''}`);
+      }
+      
+      console.log('[MOCK SIMULATOR] Treatment decisions generated successfully');
+    } catch (error) {
+      console.error('[MOCK SIMULATOR] Error generating treatment decisions:', error);
       throw error;
     }
   }

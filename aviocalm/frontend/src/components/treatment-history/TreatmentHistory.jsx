@@ -399,6 +399,27 @@ export const TreatmentHistory = ({ patientId }) => {
                   
                   const blocks = generateVrStateBlocks(chartData);
                   
+                  // Calculate violation markers for treatment decisions (Epic 4.3 - In-Chart Annotations)
+                  const violationMarkers = treatmentDecisions
+                    .filter(decision => decision.actual_difficulty_selected_by_patient > decision.suggested_difficulty)
+                    .map(decision => {
+                      const decisionTime = new Date(decision.system_timestamp).getTime();
+                      // Find the closest data index to the decision timestamp
+                      const closestIndex = chartData.reduce((closest, point, index) => {
+                        const pointTime = new Date(point.timestamp).getTime();
+                        const currentDiff = Math.abs(pointTime - decisionTime);
+                        const closestDiff = Math.abs(new Date(chartData[closest].timestamp).getTime() - decisionTime);
+                        return currentDiff < closestDiff ? index : closest;
+                      }, 0);
+                      
+                      return {
+                        dataIndex: closestIndex,
+                        suggested: decision.suggested_difficulty,
+                        selected: decision.actual_difficulty_selected_by_patient,
+                        timestamp: decision.system_timestamp
+                      };
+                    });
+                  
                   return (
                     <>
                       {/* Render VR Stage Legend */}
@@ -443,6 +464,24 @@ export const TreatmentHistory = ({ patientId }) => {
                             strokeDasharray="4 4" 
                             label={{ position: 'insideTopLeft', value: 'Baseline', fill: '#374151', fontSize: 14, fontWeight: 'bold' }} 
                           />
+                          {/* Treatment Decision Violation Markers - Epic 4.3 */}
+                          {violationMarkers.map((marker, i) => (
+                            <ReferenceLine
+                              key={`violation-${i}`}
+                              x={marker.dataIndex}
+                              yAxisId="left"
+                              stroke="#ef4444"
+                              strokeWidth={3}
+                              strokeDasharray="5 5"
+                              label={{
+                                position: 'top',
+                                value: '⚠️',
+                                fill: '#ef4444',
+                                fontSize: 20,
+                                fontWeight: 'bold'
+                              }}
+                            />
+                          ))}
                           <XAxis 
                             dataKey="dataIndex" 
                             tickFormatter={(val) => chartData[val]?.timestamp ? new Date(chartData[val].timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
@@ -461,12 +500,32 @@ export const TreatmentHistory = ({ patientId }) => {
                                 const data = payload[0].payload;
                                 const time = new Date(data.timestamp);
                                 const stageName = STAGE_NAMES[data.vrState] || data.vrState;
+                                
+                                // Check if this data point is near a violation marker (Epic 4.3 - In-Chart Annotations)
+                                const violationMarker = violationMarkers.find(
+                                  marker => Math.abs(marker.dataIndex - data.dataIndex) <= 1
+                                );
+                                
                                 return (
                                   <div className="custom-tooltip">
                                     <p className="tooltip-time">{time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}</p>
                                     <p className="tooltip-metric">Heart Rate: {data.avgHeartRate} BPM</p>
                                     <p className="tooltip-metric">Stress Score: {data.avgStressScore}</p>
                                     <p className="tooltip-state">Stage: {stageName} ({data.difficulty})</p>
+                                    {violationMarker && (
+                                      <div style={{ 
+                                        marginTop: '8px', 
+                                        paddingTop: '8px', 
+                                        borderTop: '1px solid #ef4444',
+                                        color: '#ef4444',
+                                        fontWeight: 'bold'
+                                      }}>
+                                        <p style={{ margin: '0', fontSize: '12px' }}>⚠️ Treatment Decision Violation</p>
+                                        <p style={{ margin: '4px 0 0 0', fontSize: '11px' }}>
+                                          Suggested: {violationMarker.suggested} | Selected: {violationMarker.selected}
+                                        </p>
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               }
