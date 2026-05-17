@@ -410,8 +410,8 @@ export const TreatmentHistory = ({ patientId }) => {
                             height={60} 
                             tick={{ fontSize: 12 }} 
                           />
-                          <YAxis yAxisId="left" domain={['dataMin - 10', 'dataMax + 10']} label={{ value: 'Heart Rate (BPM)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#666' } }} />
-                          <YAxis yAxisId="right" orientation="right" domain={[0, 100]} label={{ value: 'Stress Score', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fill: '#666' } }} />
+                          <YAxis yAxisId="left" domain={['dataMin - 10', 'dataMax + 10']} label={{ value: 'Heart Rate (BPM)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#3b82f6', fontWeight: 'bold' } }} />
+                          <YAxis yAxisId="right" orientation="right" domain={[0, 100]} label={{ value: 'Stress Score', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fill: '#8b5cf6', fontWeight: 'bold' } }} />
                           <Tooltip 
                             labelFormatter={(val) => chartData[val]?.timestamp ? new Date(chartData[val].timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : val}
                             content={({ payload, label }) => {
