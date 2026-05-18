@@ -106,23 +106,20 @@ AvioCalm is a professional therapeutic platform for treating Aerophobia (fear of
 * **[FE] Empty State:** Graceful handling showing 'No patients found matching your search'.
 * **[Role Control:** Owner sees all patients; Therapists see only their own.
 
-#### User Story 2.3: Patient Profile & Data Dashboard
-As a Therapist, I want to access a comprehensive Patient Profile from the Patient List to manage personal data and analyze treatment history in one place.
-* **[FE] UI:** Implement a 3-tab layout:
-  - 📝 Personal Info: Demographics, emergency contact, and medical/phobia background (Editable).
-  - 📈 Treatment History: A log of all home sessions. Clicking a session opens a drill-down view featuring:
-    - Time-series heart rate/stress graphs with Plot Bands (colored by VR States).
-    - Time-in-Range distribution (Pie/Bar charts).
-    - Clinical HRV (RMSSD) score for that session.
-  - 🚀 Progression: Visual comparison of performance across sessions (Trend Analysis) and "Download PDF Report" functionality.
-* **[BE/AI] Implement HRV (RMSSD) calculation and progression aggregation for the respective tabs.
-* **[BE] Implement Downsampling/Bucketing for smooth graph rendering in the History tab.
-* **[BE] API:** `GET /api/patients/:id` with JOINs for Treatment History and Progression data.
-* **[BE] API:** `PUT /api/patients/:id` for updating patient details (Personal Info tab).
-* **[BE] API:** `GET /api/patients/:id/sessions` for Treatment History tab with aggregated metrics.
-* **[BE] API:** `GET /api/patients/:id/progression` for Progression tab with trend analysis.
-* **[BE] API:** `GET /api/patients/:id/pdf` for PDF report generation.
-* **[Role Control:** Owner can view any patient; Therapists can only view their own patients.
+#### User Story 2.3: Patient Profile - Personal Info Edit
+- **Description:** As a therapist (or admin), I want to edit and update a patient's personal and medical details from the `Personal Info` tab while keeping their National ID strictly read-only to maintain medical data integrity and prevent identity mismatches.
+- **Tasks:**
+  - **BE Data Fetching:** Implement `GET /api/patients/:id` to fetch ONLY demographic data, medical background, emergency contacts, and phobia records for this specific tab. (Do NOT perform complex joins with appointments or session telemetry here).
+  - **BE Data Update:** Implement `PUT /api/patients/:id` to receive and update the editable personal fields in the database.
+  - **BE Data Integrity Gate:** The server must explicitly drop, ignore, or reject (400 Bad Request) any incoming attempts to alter the `national_id` column within the PUT request body.
+  - **BE RBAC Logic:** Validate that an Owner can access/edit all profiles, while a Therapist can only view/edit patients assigned to them directly in the DB (return 403 Forbidden if unauthorized).
+  - **FE Read-Only Fields:** Force the `National ID` input field to be permanently locked in the form UI using `disabled={true}` or `readOnly` to prevent physical modifications.
+  - **FE Validation Engine:** Implement a `validateForm` engine triggered on "Save Changes" that returns false and halts the API PUT request if any validation rule is broken.
+  - **FE Required Fields Check:** Enforce that `full_name` and `date_of_birth` are mandatory and cannot be left blank.
+  - **FE Regex & Format Rules:** Validate `email` format (must contain @, dots, and no whitespace) and `phone` format (numbers and valid prefixes only) if values are provided.
+  - **FE Error State UI:** When validation fails, style the faulty input field with a red border and render a clear, red helper message directly beneath it (e.g., "Please enter a valid email address").
+  - **FE Error State Cleanup:** Fully reset/clear all error states from the screen on form "Cancel", on a successful API save (200 OK), and dynamically clear a field-specific error message `onChange` as soon as the user focuses and starts retyping.
+  - **UX Location & Navigation:** The edit form and action buttons reside entirely inside the first tab (`Personal Info`) of the unified Patient Profile view (accessible via the `/analytics/:patientId` route).
 
 ---
 
@@ -193,32 +190,99 @@ As a therapist, I want a data-driven recommendation on whether the patient is re
 
 ---
 
-### Epic 5: Reporting & Analytics
+### Epic 5: Asynchronous Analytics & Advanced Patient History
 
-**User Story 5.1: Patient Analytics & XAI (Integrated)**
-**Tasks:**
-* **FE:** Integration with a charting library (D3.js / Chart.js) for Patient Profile -> Treatment History tab.
-* **FE:** Multi-axis line chart displaying HR and Stress/SpO2 over time, with Annotations when VR rooms change.
-* **BE:** Fetch data from `AnxietyProfile` and perform statistical aggregation by scene.
-* **BE Rule-Engine (Insight Generator):** Engine generating text-based insights based on statistics (e.g., "Note: Patient shows high sensitivity during the landing phase").
-* **FE:** Display "System Conclusions" as text in Treatment History tab.
-* **FE (Explainability Markers):** Add Markers on the chart showing when the system crossed statistical thresholds and sent alerts, for full clinical transparency.
-* **BE Logic:** Integrate Feedback Loop - note if the therapist agreed with similar insights previously.
-* **UX (UI Location & Navigation):** All patient analytics features are now integrated into Patient Profile -> Treatment History tab (accessible via Clinical -> Patient List -> View Record).
+**Objective:** Create an advanced medical analytics system for asynchronous online treatment (patients practicing at home via VR). The system will support navigation from the patient list to a tab-based profile, dynamic session logging, and deep-dive (Drill-down) multi-axis charts with clinical metrics, while filtering physical movement artifacts.
 
-**User Story 5.2: Global Stats (Owner Dashboard)**
-**Tasks:**
-* **FE (Access Control):** Restricted page for Owners only (Admin Sidebar).
-* **BE:** Aggregation queries for average anxiety reduction across session series.
-* **FE:** Management screen showing total patients, phobia distribution, and PDF export option.
-* **BE Aggregation:** Calculate a "Treatment Success Rate" metric.
+#### User Story 5.1: Patient Profile & Navigation Shell
+- **Description:** As a therapist, I want to click "View Record" on a patient row in the Patient List to navigate to a comprehensive, tab-based Patient Profile to avoid cognitive overload.
+- **Tasks:**
+  - **FE Navigation:** In `PatientList` component (columns: National ID, Name, Status, Created Date, Actions), wire the "View Record" button to route to `/analytics/:patientId`.
+  - **FE Tab Layout:** Design the `Patient Profile` layout containing 3 tabs:
+    1. `Personal Info`: Demographic data, medical history, phobia details (with inline edit & save).
+    2. `Treatment History`: The clinical session log table.
+    3. `Progression`: Long-term trend charts.
+  - **UX Indicator:** Add a visual indicator (Blue Badge) in `PatientList` next to patients who have unreviewed sessions completed at home.
 
-**User Story 5.3: Treatment PDF Report**
-**Tasks:**
-* **BE:** Endpoint for a PDF generator pulling metrics, durations, and insights.
-* **BE Content:** PDF Structure: Title, AvioCalm logo, patient details, metrics table, and text summary.
-* **Security:** Watermark with therapist name and date to prevent forgery.
-* **FE:** "Download PDF" button in the patient's "Treatment History" tab.
+#### User Story 5.2: Treatment History & Drill-down Trigger
+- **Description:** As a therapist, I want to view a table of all sessions for the patient and click a specific session to drill down into its detailed telemetry.
+- **Tasks:**
+  - **BE Endpoint:** Create `GET /api/patients/:id/sessions` to fetch all history rows from the sessions/telemetry table.
+  - **FE Table UI:** Build the table inside the `Treatment History` tab with exact columns: `Date`, `Duration`, `HRV RMSSD`, `Difficulty`, `Status`, `Actions`.
+  - **Edge-case Handling:** If a session is `In Progress`, display `N/A` for `Duration` and `HRV RMSSD`.
+  - **Difficulty Badges:** Render colored badges for difficulty: `Easy` (Green), `Medium` (Orange), `Hard` (Red). Render gray `N/A` if not applicable.
+  - **FE State Trigger:** Clicking the gray "View Record" button on a session row must update the local state to inject the `Session Analytics` view below the table.
+
+#### User Story 5.3: Dual-Axis Time-Series & Flight Stages (Session Analytics Chart)
+- **Description:** As a therapist, when viewing a completed session, I want a dual-y-axis line chart showing Heart Rate and Stress simultaneously, overlaid with colored background regions representing VR flight stages.
+- **Tasks:**
+  - **BE Adaptive Downsampling:** Create a Bucketing Service in the backend to aggregate raw telemetry data into moving averages (e.g., 15-30s windows depending on total duration) to prevent React rendering lag. Output a text indicator like `"Showing 50 data points"`.
+  - **FE Recharts Dual-Axis:** Implement a Recharts `LineChart` with two independent Y-axes:
+    - Left Axis: `Heart Rate (BPM)` (Blue line).
+    - Right Axis: `Stress Score` (0-100 scale, Purple line).
+  - **FE Dynamic Plot Bands:** Use Recharts `ReferenceArea` to color-code the chart background based on `VrState` timelines matching the top legend: `Lobby` (Light Blue), `Takeoff` (Light Orange), `Cruising` (Light Green), `Landing` (Light Purple), `Completed` (Light Gray).
+  - **FE Baseline Reference Line:** Render a dashed horizontal `ReferenceLine` representing the 3-minute baseline. Display a text indicator below the chart: `"Baseline HR: XX BPM"`.
+  - **UX Interactive Tooltip:** Design a custom hover tooltip displaying: Timestamp, `Heart Rate: XX BPM`, `Stress Score: XX`, `SpO2: XX%`, and current stage with difficulty in parentheses, e.g., `Stage: Cruising (Medium)`.
+
+#### User Story 5.4: Time in Range Distribution & Session Summary
+- **Description:** As a therapist, I want a breakdown of the patient's stress zones in percentages and a quick macro summary grid.
+- **Tasks:**
+  - **FE Donut Chart (Time in Range):** Integrate a Recharts `PieChart` (with `innerRadius`) showing percentage distribution of stress levels relative to their baseline: `Relaxed` (Green), `Moderate` (Orange), `Panic` (Red).
+  - **FE Session Summary Widgets:** Build a grid of 4 summary cards below the donut chart:
+    1. `Total Data Points` (Raw count from watch/VR).
+    2. `Time Windows` (Downsampled points rendered).
+    3. `Average Stress` (Weighted average of the session).
+    4. `Average SpO2` (Average oxygen level during the session).
+
+#### User Story 5.5: Clinical Math Engine & Longitudinal Progression
+- **Description:** As a therapist, I want the system to process advanced metrics, filter motion noise, and track multi-session recovery trends.
+- **Tasks:**
+  - **BE Motion Artifacts Filter:** Cross-reference sudden heart rate spikes with accelerometer data from the watch. If high acceleration matches a spike, flag it as a `"Motion Artifact"` on the chart rather than a clinical anxiety peak.
+  - **BE HRV RMSSD Calculation:** Calculate the root mean square of successive differences (RMSSD) from the RR intervals at session completion and save it to the DB:
+    $$RMSSD = \sqrt{\frac{1}{N-1}\sum_{i=1}^{N-1}(RR_{i+1}-RR_i)^2}$$
+  - **FE Progression Bar Chart:** In the `Progression` tab, render a bar chart comparing performance metrics across multiple sessions (e.g., comparing peak stress during "Takeoff" from Session 1 to Session 10) to visualize desensitization.
+  - **FE PDF Export Service:** Implement a secure "Download PDF Report" button inside the Progression tab that generates a clinical summary document with a clinic logo and a subtle watermark.
+
+---
+
+### Epic 6: Hardware Inventory & Kit Assignment
+**Goal:** Complete separation between patient identity and physical devices, managing equipment "Kits", and routing asynchronous data streams to the correct active patient.
+
+#### User Story 6.1: Hardware Provisioning & Kit Creation (Admin Inventory UI)
+- **Description:** As an admin, I want to register devices (VR/Watch) and package them into "Kits" to manage inventory health and assign equipment as a single working unit.
+- **DB:** Create `devices` table (`device_id` PK, `device_type` Enum, `status` Enum, `last_seen` Timestamp) and `kits` table (`kit_id` PK, `vr_device_id` FK, `watch_device_id` FK).
+- **BE:** Implement `POST /api/v1/devices` and `POST /api/v1/kits` with validation preventing a device from being in multiple kits simultaneously.
+- **BE:** Implement `PATCH /api/v1/kits/:id` for swapping a single broken device without deleting the kit.
+- **FE:** Build Inventory Dashboard with "Registered Devices" and "Active Kits" tables, including status badges.
+- **FE:** Create a Modal/Component for kit creation using available devices dropdowns.
+- **UX Location:** Sidebar -> `🛡️ Admin -> 📦 Hardware Inventory`.
+
+#### User Story 6.2: Patient-Kit Assignment Lifecycle (Onboarding Assignment)
+- **Description:** As a clinician, I want to assign an available kit to a new patient during onboarding and release it when treatment ends.
+- **DB:** Create `patient_assignments` ledger table (`assignment_id`, `patient_id`/`national_id`, `kit_id`, `assigned_at`, `unassigned_at` Nullable) with a Unique Index on active kits (`unassigned_at IS NULL`).
+- **BE:** Implement `GET /api/v1/kits/available` querying kits without active assignments.
+- **BE:** Implement `POST /api/v1/assign-kit` and `PATCH /api/v1/release-kit`. Protect National ID from modifications during this process.
+- **FE:** Update Add Patient Wizard to include **Step 3: Equipment Assignment**.
+- **FE:** Add a searchable Live Dropdown displaying available kits (e.g., "Kit #5 - Watch 4, Quest 2").
+- **UX Location:** Sidebar -> `Clinical -> Add Patient -> Step 3: Equipment`.
+
+#### User Story 6.3: Async Device-to-Patient Routing & Profile Management
+- **Description:** As a system/clinician, I want to route incoming async device data to the correctly assigned patient and manage the equipment from the patient's profile.
+- **BE:** Update Socket.io Handshake to validate `deviceId` against the `devices` table upon connection.
+- **BE:** Develop a server Middleware to resolve the active patient's `national_id` from a given `deviceId` via SQL Joins.
+- **BE:** Implement asynchronous data ingestion to PostgreSQL, attaching the correct `patient_id` even if VR and Watch streams arrive at different times.
+- **BE:** Add logging/alerting for unassigned device streams sending data.
+- **FE:** Add an "Assigned Equipment" Card in Patient Profile -> Personal Info tab.
+- **FE:** Add a "Release Kit" button and a "Swap Device" feature directly inside the equipment card.
+- **UX Location:** `Patient Profile -> Personal Info Tab -> Bottom Section`.
+
+#### User Story 6.4: Kit Health & Real-time Connectivity Status
+- **Description:** As a clinician, I want to see live connectivity and streaming status of the patient's devices.
+- **BE:** Implement Heartbeat Tracker updating `last_seen` in the `devices` table upon receiving data/ping.
+- **BE:** Setup a Background Job (e.g., via `node-cron`) to alert if an assigned kit hasn't sent data for over 48 hours.
+- **FE:** Add permanent Watch and VR status icons in the Patient Profile Header.
+- **FE:** Color icons green if active within last 5 mins, otherwise gray/red, with a hover Tooltip showing "Last seen: HH:MM".
+- **UX Location:** `Patient Profile Header` (Visible across all tabs).
 
 ---
 
