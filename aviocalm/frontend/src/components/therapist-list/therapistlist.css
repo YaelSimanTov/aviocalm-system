@@ -1,0 +1,134 @@
+.therapist-list {
+    padding: 1rem;
+    background-color: #f8fafc;
+  }
+  
+  /* Search Section */
+  .therapist-list__search-section {
+    margin-bottom: 2rem;
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e5e7eb;
+  }
+  
+  .therapist-list__search-container {
+    max-width: 600px;
+  }
+  
+  .therapist-list__search-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    background-color: #f9fafb;
+    transition: all 0.2s ease;
+  }
+  
+  .therapist-list__search-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    background-color: white;
+  }
+  
+  /* Results Info */
+  .therapist-list__results-info {
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+    color: #6b7280;
+  }
+  
+  .therapist-list__results-count {
+    font-weight: 600;
+    color: #1f2937;
+  }
+  
+  /* Table */
+  .therapist-list__table-container {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e5e7eb;
+  }
+  
+  .therapist-list__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+  
+  .therapist-list__table th {
+    background-color: #f8fafc;
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: #374151;
+    border-bottom: 2px solid #e5e7eb;
+  }
+  
+  .therapist-list__table td {
+    padding: 1rem;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  
+  .therapist-list__row:hover {
+    background-color: #f8fafc;
+  }
+  
+  /* Cell Styling */
+  .therapist-list__id {
+    font-family: monospace;
+    font-weight: 600;
+    color: #3b82f6;
+  }
+  
+  .therapist-list__name {
+    font-weight: 500;
+    color: #1f2937;
+  }
+  
+  .therapist-list__status {
+    background-color: #e0f2fe;
+    color: #0369a1;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  
+  .therapist-list__action-btn {
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  
+  .therapist-list__action-btn:hover {
+    background-color: #2563eb;
+  }
+  
+  /* Empty State */
+  .therapist-list__empty {
+    text-align: center;
+    padding: 3rem;
+  }
+  /* מאפשר לתפריט לצאת מגבולות השורה */
+.therapist-list__table-container {
+  overflow: visible !important;
+}
+
+.therapist-list__table {
+  border-collapse: separate; /* עוזר במניעת חיתוך */
+}
+
+/* מוודא שהתא של הפעולות לא חותך תוכן */
+.therapist-list__row td:last-child {
+  overflow: visible !important;
+}

@@ -1,15 +1,25 @@
 import React from 'react';
+import AddTherapistForm from '../add-therapist-form/add-therapist-form';
+import TherapistList from '../therapist-list/therapistlist';
 
-// Placeholder Team Management component for Owner role
 export const TeamManagement = () => {
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold mb-6">🛡️ Team Management</h1>
-      <div className="bg-white rounded-lg shadow p-6">
-        <p className="text-gray-600">Team management interface coming soon...</p>
-        <p className="text-sm text-gray-500 mt-2">
-          This section will allow Owners to manage therapists and staff members.
+    <div className="p-8 space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold mb-2">Team Management</h1>
+        <p className="text-gray-600">
+          Create new therapists and manage the existing therapist team.
         </p>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-xl font-semibold mb-4">Create Therapist</h2>
+        <AddTherapistForm />
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-xl font-semibold mb-4">Therapist List</h2>
+        <TherapistList />
       </div>
     </div>
   );

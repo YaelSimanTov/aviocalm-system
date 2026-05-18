@@ -1,0 +1,92 @@
+.add-therapist-container {
+    display: flex;
+    flex-direction: column; /* 🔥 גורם לכותרת ולכרטיס לעמוד אחד מתחת לשני */
+    align-items: center;    /* 🔥 ממרכז את שניהם אופקית */
+    justify-content: flex-start;
+    padding: 2rem;
+    min-height: 100%;
+    width: 100%;
+  }
+  
+  /* עיצוב לכותרת החיצונית */
+  .add-therapist-page-title {
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 2rem;
+    text-align: center; /* 🔥 מוודא שהטקסט עצמו ממורכז */
+  }
+  
+  .add-therapist-card {
+    background: white;
+    width: 100%;
+    max-width: 500px;
+    padding: 2.5rem;
+    border-radius: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e5e7eb;
+  }
+  
+  .add-therapist-card__title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 1.5rem;
+    text-align: left;
+  }
+  
+  .add-therapist-form__group {
+    margin-bottom: 1.25rem;
+  }
+  
+  .add-therapist-form__label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: 0.5rem;
+    text-align: left;
+  }
+  
+  .add-therapist-form__input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+    background-color: #f8fafc;
+  }
+  
+  .add-therapist-form__input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    background-color: white;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+  
+  .add-therapist-form__submit-btn {
+    width: 100%;
+    background-color: #3b82f6;
+    color: white;
+    padding: 0.875rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1rem;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 1rem;
+  }
+  
+  .add-therapist-form__submit-btn:hover {
+    background-color: #2563eb;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .add-therapist-form__submit-btn:disabled {
+    background-color: #94a3b8;
+    cursor: not-allowed;
+    transform: none;
+  }
