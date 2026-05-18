@@ -1,14 +1,16 @@
 -- AvioCall Database Schema
--- PostgreSQL Schema for Epic 1 & 2
+-- PostgreSQL Schema for Epic 1, 2, & 6
 -- Port: 5433, Database: aviocalm
 
--- Drop existing tables if they exist
+-- Drop existing tables if they exist (order matters for foreign key dependencies)
 DROP TABLE IF EXISTS scene_stress_scores CASCADE;
 DROP TABLE IF EXISTS anxiety_profiles CASCADE;
 DROP TABLE IF EXISTS medical_norms CASCADE;
 DROP TABLE IF EXISTS appointments CASCADE;
 DROP TABLE IF EXISTS sessions CASCADE;
 DROP TABLE IF EXISTS patients CASCADE;
+DROP TABLE IF EXISTS kits CASCADE;
+DROP TABLE IF EXISTS devices CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 
 -- Users Table (Epic 1.1)
@@ -111,6 +113,22 @@ CREATE TABLE patient_baselines (
     calibrated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Devices Table (Epic 6.1)
+-- Manages individual hardware devices (VR headsets and smartwatches)
+CREATE TABLE devices (
+    device_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    device_type VARCHAR(20) NOT NULL CHECK (device_type IN ('VR', 'Watch')),
+    status VARCHAR(20) DEFAULT 'Active' CHECK (status IN ('Active', 'Broken', 'Maintenance')),
+    last_seen TIMESTAMP
+);
+
+-- Kits Table (Epic 6.1)
+-- Packages VR and Watch devices into assignable working units
+CREATE TABLE kits (
+    kit_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    vr_device_id UUID NOT NULL REFERENCES devices(device_id),
+    watch_device_id UUID NOT NULL REFERENCES devices(device_id)
+);
 
 -- Create indexes for better performance
 CREATE INDEX idx_users_username ON users(username);
@@ -124,6 +142,10 @@ CREATE INDEX idx_anxiety_profiles_timestamp ON anxiety_profiles(recorded_at);
 CREATE INDEX idx_scene_stress_scores_patient ON scene_stress_scores(patient_id);
 CREATE INDEX idx_scene_stress_scores_session ON scene_stress_scores(session_id);
 CREATE INDEX idx_scene_stress_scores_vrstate ON scene_stress_scores(vr_state);
+CREATE INDEX idx_devices_type ON devices(device_type);
+CREATE INDEX idx_devices_status ON devices(status);
+CREATE INDEX idx_kits_vr_device ON kits(vr_device_id);
+CREATE INDEX idx_kits_watch_device ON kits(watch_device_id);
 
 -- Insert default owner user (admin / Admin123!)
 -- Password: Admin123! (meets requirements: 8+ chars, uppercase, lowercase, special, number)

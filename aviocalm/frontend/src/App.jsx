@@ -11,6 +11,7 @@ import PatientProfile from './components/patient-profile/patient-profile';
 import ActiveMonitor from './components/active-monitor/ActiveMonitor';
 import PatientInsights from './components/analytics/PatientInsights';
 import TeamManagement from './components/admin/team-management';
+import InventoryDashboard from './components/admin/inventory-dashboard';
 
 // Placeholder components for routes that don't exist yet
 const GlobalStats = () => <div className="p-8"><h1 className="text-2xl font-bold">Global Stats</h1><p>Coming soon...</p></div>;
@@ -158,6 +159,14 @@ function App() {
             </ProtectedRoute>
           }>
             <Route index element={<TeamManagement />} />
+          </Route>
+
+          <Route path="/admin/hardware-inventory" element={
+            <ProtectedRoute requiredRole="Owner">
+              <AuthenticatedLayout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<InventoryDashboard />} />
           </Route>
 
           {/* Catch-all 404 */}

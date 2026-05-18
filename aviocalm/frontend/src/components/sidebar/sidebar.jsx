@@ -11,7 +11,8 @@ import {
   Settings, 
   LogOut,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  Package
 } from 'lucide-react';
 import './sidebar.css';
 
@@ -138,6 +139,15 @@ export const Sidebar = ({ onToggleCollapse }) => {
                   <div className="sidebar__item-content">
                     <Users className="sidebar__item-icon" />
                     <span className="sidebar__text">Team Management</span>
+                  </div>
+                </Link>
+                <Link 
+                  to="/admin/hardware-inventory" 
+                  className="sidebar__item"
+                >
+                  <div className="sidebar__item-content">
+                    <Package className="sidebar__item-icon" />
+                    <span className="sidebar__text">Hardware Inventory</span>
                   </div>
                 </Link>
               </div>
