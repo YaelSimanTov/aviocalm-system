@@ -6,7 +6,10 @@ const { Server } = require('socket.io');
 require('dotenv').config();
 
 // Database manager for saving IoT/VR data
-const { insertAnxietyProfile, initializeDatabase } = require('./db/dbManager');
+const { insertAnxietyProfile, initializeDatabase, completeSessionWithHRV } = require('./db/dbManager');
+
+// Device resolver for async patient-device routing (US 6.3)
+const { getPatientByDevice, createNewSession, completeSession } = require('./services/device-resolver');
 
 // Mock data simulator for centralized mock data generation
 const { initializeMockSimulator, startMockSimulation, stopMockSimulation, getMockSimulationStatus } = require('./services/mockDataSimulator');
@@ -86,6 +89,10 @@ const LevelDiff = {
 let currentVrState = 'Unknown'; 
 let currentDifficulty = LevelDiff.NONE;
 
+// 3. In-memory session tracker: patient_uuid -> { nationalId, sessionId }
+// Used to route incoming device streams to the correct patient session
+const activeSessions = new Map();
+
 // ==========================================
 // Mock Data Generator for ActiveMonitor Testing
 // ==========================================
@@ -113,6 +120,38 @@ io.on('connection', async (socket) => {
         await startMockSimulation();
     } catch (error) {
         console.error('[INIT] Database initialization failed:', error);
+    }
+
+    // Resolve device to patient via kit assignment (US 6.3)
+    const deviceId = socket.handshake.query.deviceId;
+    if (deviceId) {
+        try {
+            const deviceInfo = await getPatientByDevice(deviceId);
+            if (deviceInfo) {
+                // Attach patient context to this socket for use in data handlers
+                socket.patientUuid = deviceInfo.patient_uuid;
+                socket.nationalId = deviceInfo.national_id;
+                socket.deviceType = deviceInfo.device_type;
+
+                console.log(`[DEVICE] Device ${deviceId} (${deviceInfo.device_type}) resolved to patient: ${deviceInfo.national_id}`);
+
+                // Create a new session if this patient does not already have one active
+                if (!activeSessions.has(socket.patientUuid)) {
+                    const sessionId = await createNewSession(socket.patientUuid);
+                    activeSessions.set(socket.patientUuid, {
+                        nationalId: deviceInfo.national_id,
+                        sessionId
+                    });
+                    console.log(`[SESSION] New session ${sessionId} opened for patient ${deviceInfo.national_id}`);
+                } else {
+                    console.log(`[SESSION] Existing session found for patient ${deviceInfo.national_id}`);
+                }
+            } else {
+                console.warn(`[Unassigned Stream] Device ${deviceId} connected without an active assignment.`);
+            }
+        } catch (error) {
+            console.error(`[DEVICE] Error resolving device ${deviceId}:`, error);
+        }
     }
 
     // CHANNEL 1: Listening ONLY to Unity VR
@@ -151,10 +190,26 @@ io.on('connection', async (socket) => {
         }
 
         console.log(`[SAMSUNG WATCH] Raw Vitals -> HR: ${sensorData.heartRate} | Stress: ${sensorData.stressScore} | SpO2: ${sensorData.spo2}%`);
+
+        // Skip DB insertion if this socket has no resolved patient (unassigned device)
+        if (!socket.patientUuid) {
+            console.warn(`[Unassigned Stream] watch_vitals_update received from unresolved socket ${socket.id} — skipping DB insert`);
+            return;
+        }
+
+        // Look up the active session for this patient from the in-memory tracker
+        const sessionData = activeSessions.get(socket.patientUuid);
+        if (!sessionData) {
+            console.warn(`[SESSION] No active session found for patient ${socket.patientUuid} — skipping DB insert`);
+            return;
+        }
         
-        // Sync IoT Vitals with VR Context
+        // Sync IoT Vitals with VR Context, mapping correctly to the anxiety_profiles schema:
+        // patient_id = national_id (VARCHAR FK referencing patients.national_id)
+        // session_id = UUID from the sessions table
         const syncedPatientRecord = {
-            sessionId: '123e4567-e89b-12d3-a456-426614174000', // To be replaced dynamically later
+            patientId: sessionData.nationalId,
+            sessionId: sessionData.sessionId,
             timestamp: new Date().toISOString(),
             vrState: currentVrState,
             difficulty: currentDifficulty,
@@ -193,8 +248,24 @@ io.on('connection', async (socket) => {
         }
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
         console.log(`[CONNECTION] Client disconnected: ${socket.id}`);
+
+        // Complete the session when the VR device disconnects
+        if (socket.deviceType === 'VR' && socket.patientUuid) {
+            const sessionData = activeSessions.get(socket.patientUuid);
+            if (sessionData) {
+                try {
+                    await completeSession(sessionData.sessionId);
+                    console.log(`[SESSION] Session ${sessionData.sessionId} completed on VR disconnect for patient ${socket.nationalId}`);
+                } catch (error) {
+                    console.error(`[SESSION] Error completing session on disconnect:`, error);
+                } finally {
+                    activeSessions.delete(socket.patientUuid);
+                    console.log(`[SESSION] Removed active session for patient ${socket.nationalId} from tracker`);
+                }
+            }
+        }
     });
 });
 
