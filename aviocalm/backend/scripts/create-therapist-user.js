@@ -13,7 +13,7 @@ const pool = new Pool({
 async function createTherapistUser() {
   try {
     // User details
-    const username = 'therapist_test';
+    const username = 'therapist2';
     const plainPassword = 'Password123!';
     const role = 'Therapist';
     const firstName = 'Test';

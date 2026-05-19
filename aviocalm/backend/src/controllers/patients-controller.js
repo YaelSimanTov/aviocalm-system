@@ -180,6 +180,7 @@ const createPatient = async (req, res) => {
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
       )
+      RETURNING id, national_id, full_name
     `;
     
     const values = [
@@ -198,12 +199,15 @@ const createPatient = async (req, res) => {
       userId
     ];
     
-    await pool.query(query, values);
+    const insertResult = await pool.query(query, values);
+    const newPatient = insertResult.rows[0];
     
     res.status(201).json({
       success: true,
       data: {
-        national_id: national_id,
+        id: newPatient.id,
+        national_id: newPatient.national_id,
+        full_name: newPatient.full_name,
         message: 'Patient created successfully'
       }
     });

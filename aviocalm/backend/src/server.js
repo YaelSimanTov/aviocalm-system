@@ -17,6 +17,7 @@ const ownerRoutes = require('./routes/owner-routes');
 const patientsRoutes = require('./routes/patients-routes');
 const analyticsRoutes = require('./routes/analytics-routes');
 const inventoryRoutes = require('./routes/inventory-routes');
+const assignmentRoutes = require('./routes/assignment-routes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -47,6 +48,7 @@ app.use('/api/owner', ownerRoutes);
 app.use('/api/patients', patientsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/v1', inventoryRoutes);
+app.use('/api/v1/assignments', assignmentRoutes);
 // app.use("/api/watch", watchRoutes);
 
 // Health check endpoint

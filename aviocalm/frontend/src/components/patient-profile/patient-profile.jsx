@@ -16,10 +16,20 @@ export const PatientProfile = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [formErrors, setFormErrors] = useState({});
+  const [currentAssignment, setCurrentAssignment] = useState(null);
+  const [isLoadingAssignment, setIsLoadingAssignment] = useState(false);
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [availableKits, setAvailableKits] = useState([]);
+  const [isLoadingKits, setIsLoadingKits] = useState(false);
+  const [selectedKitId, setSelectedKitId] = useState('');
+  const [isReleasing, setIsReleasing] = useState(false);
+  const [isAssigning, setIsAssigning] = useState(false);
 
   // Fetch patient data on component mount
   useEffect(() => {
     fetchPatient();
+    fetchAssignment();
   }, [id]);
 
   const fetchPatient = async () => {
@@ -194,6 +204,100 @@ export const PatientProfile = () => {
       age--;
     }
     return age;
+  };
+
+  // Fetch current assignment for this patient
+  const fetchAssignment = async () => {
+    try {
+      setIsLoadingAssignment(true);
+      const result = await apiRequest(`/v1/assignments/patient/${id}`);
+      if (result.success && result.data) {
+        setCurrentAssignment(result.data);
+      } else {
+        setCurrentAssignment(null);
+      }
+    } catch (error) {
+      console.error('Error fetching assignment:', error);
+      setCurrentAssignment(null);
+    } finally {
+      setIsLoadingAssignment(false);
+    }
+  };
+
+  // Fetch available kits for assign modal
+  const fetchAvailableKits = async () => {
+    try {
+      setIsLoadingKits(true);
+      const result = await apiRequest('/v1/kits/available', { method: 'GET' });
+      if (result.success && result.data) {
+        setAvailableKits(result.data);
+      }
+    } catch (error) {
+      console.error('Error fetching available kits:', error);
+    } finally {
+      setIsLoadingKits(false);
+    }
+  };
+
+  // Handle release kit action
+  const handleReleaseKit = async () => {
+    try {
+      setIsReleasing(true);
+      const result = await apiRequest('/v1/assignments/release', {
+        method: 'PATCH',
+        body: JSON.stringify({ patient_id: id })
+      });
+      
+      if (result.success) {
+        setSuccessMessage('Kit released successfully!');
+        setShowReturnModal(false);
+        await fetchAssignment();
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        setError(result.error || 'Failed to release kit');
+      }
+    } catch (error) {
+      setError('Network error. Please try again.');
+    } finally {
+      setIsReleasing(false);
+    }
+  };
+
+  // Handle assign kit action
+  const handleAssignKit = async () => {
+    if (!selectedKitId) {
+      setError('Please select a kit to assign');
+      return;
+    }
+    
+    try {
+      setIsAssigning(true);
+      const result = await apiRequest('/v1/assignments/assign', {
+        method: 'POST',
+        body: JSON.stringify({ patient_id: id, kit_id: selectedKitId })
+      });
+      
+      if (result.success) {
+        setSuccessMessage('Kit assigned successfully!');
+        setShowAssignModal(false);
+        setSelectedKitId('');
+        await fetchAssignment();
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        setError(result.error || 'Failed to assign kit');
+      }
+    } catch (error) {
+      setError('Network error. Please try again.');
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  // Open assign modal and fetch available kits
+  const handleOpenAssignModal = () => {
+    setShowAssignModal(true);
+    setSelectedKitId('');
+    fetchAvailableKits();
   };
 
   if (isLoading) {
@@ -547,6 +651,59 @@ export const PatientProfile = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Active Equipment Card */}
+              <div className="patient-profile__equipment-section">
+                <h4 className="patient-profile__section-title">📦 Active Equipment</h4>
+                {isLoadingAssignment ? (
+                  <div className="patient-profile__equipment-loading">
+                    Loading equipment information...
+                  </div>
+                ) : currentAssignment ? (
+                  <div className="patient-profile__equipment-card patient-profile__equipment-card--assigned">
+                    <div className="patient-profile__equipment-details">
+                      <div className="patient-profile__equipment-item">
+                        <span className="patient-profile__equipment-label">Kit ID:</span>
+                        <span className="patient-profile__equipment-value">#{currentAssignment.kit_id?.slice(0, 8)}...</span>
+                      </div>
+                      <div className="patient-profile__equipment-item">
+                        <span className="patient-profile__equipment-label">VR Device ID:</span>
+                        <span className="patient-profile__equipment-value">#{currentAssignment.vr_device_id?.slice(0, 8)}...</span>
+                      </div>
+                      <div className="patient-profile__equipment-item">
+                        <span className="patient-profile__equipment-label">Watch Device ID:</span>
+                        <span className="patient-profile__equipment-value">#{currentAssignment.watch_device_id?.slice(0, 8)}...</span>
+                      </div>
+                      <div className="patient-profile__equipment-item">
+                        <span className="patient-profile__equipment-label">Assigned Date:</span>
+                        <span className="patient-profile__equipment-value">
+                          {currentAssignment.assigned_at ? new Date(currentAssignment.assigned_at).toLocaleDateString() : 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowReturnModal(true)}
+                      className="patient-profile__return-kit-btn"
+                    >
+                      Return Kit
+                    </button>
+                  </div>
+                ) : (
+                  <div className="patient-profile__equipment-card patient-profile__equipment-card--empty">
+                    <div className="patient-profile__equipment-empty-state">
+                      <p className="patient-profile__equipment-empty-message">
+                        No equipment currently assigned
+                      </p>
+                      <button
+                        onClick={handleOpenAssignModal}
+                        className="patient-profile__assign-kit-btn"
+                      >
+                        Assign Kit
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -577,6 +734,101 @@ export const PatientProfile = () => {
           )}
         </div>
       </div>
+
+      {/* Return Kit Confirmation Modal */}
+      {showReturnModal && (
+        <div className="patient-profile__modal-overlay">
+          <div className="patient-profile__modal">
+            <div className="patient-profile__modal-header">
+              <h3 className="patient-profile__modal-title">Return Kit</h3>
+              <button
+                onClick={() => setShowReturnModal(false)}
+                className="patient-profile__modal-close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="patient-profile__modal-body">
+              <p className="patient-profile__modal-message">
+                Are you sure you want to return the assigned kit? This action will release the equipment from the patient.
+              </p>
+            </div>
+            <div className="patient-profile__modal-footer">
+              <button
+                onClick={() => setShowReturnModal(false)}
+                className="patient-profile__modal-btn patient-profile__modal-btn--secondary"
+                disabled={isReleasing}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReleaseKit}
+                disabled={isReleasing}
+                className="patient-profile__modal-btn patient-profile__modal-btn--danger"
+              >
+                {isReleasing ? 'Returning...' : 'Return Kit'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Kit Modal */}
+      {showAssignModal && (
+        <div className="patient-profile__modal-overlay">
+          <div className="patient-profile__modal">
+            <div className="patient-profile__modal-header">
+              <h3 className="patient-profile__modal-title">Assign Kit</h3>
+              <button
+                onClick={() => setShowAssignModal(false)}
+                className="patient-profile__modal-close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="patient-profile__modal-body">
+              {isLoadingKits ? (
+                <p className="patient-profile__modal-message">Loading available kits...</p>
+              ) : availableKits.length === 0 ? (
+                <p className="patient-profile__modal-message">No available kits to assign.</p>
+              ) : (
+                <div className="patient-profile__modal-form">
+                  <label className="patient-profile__label">Select a Kit:</label>
+                  <select
+                    value={selectedKitId}
+                    onChange={(e) => setSelectedKitId(e.target.value)}
+                    className="patient-profile__select"
+                    disabled={isAssigning}
+                  >
+                    <option value="">-- Select a kit --</option>
+                    {availableKits.map((kit) => (
+                      <option key={kit.kit_id} value={kit.kit_id}>
+                        Kit #{kit.kit_id.slice(0, 8)}... (VR: {kit.vr_device_id.slice(0, 8)}..., Watch: {kit.watch_device_id.slice(0, 8)}...)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+            <div className="patient-profile__modal-footer">
+              <button
+                onClick={() => setShowAssignModal(false)}
+                className="patient-profile__modal-btn patient-profile__modal-btn--secondary"
+                disabled={isAssigning}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAssignKit}
+                disabled={isAssigning || !selectedKitId}
+                className="patient-profile__modal-btn patient-profile__modal-btn--primary"
+              >
+                {isAssigning ? 'Assigning...' : 'Assign Kit'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

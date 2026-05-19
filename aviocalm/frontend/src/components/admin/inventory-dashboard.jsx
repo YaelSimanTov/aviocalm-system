@@ -134,7 +134,7 @@ export const InventoryDashboard = () => {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Device ID</th>
+                  <th>Device ID (SN)</th>
                   <th>Type</th>
                   <th>Status</th>
                   <th>Last Seen</th>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../utils/api';
 import './add-patient-form.css';
 
@@ -16,12 +16,18 @@ export const AddPatientForm = () => {
     phobia_triggers: '',
     calming_factors: '',
     emergency_contact_name: '',
-    emergency_contact_phone: ''
+    emergency_contact_phone: '',
+    kit_id: ''
   });
+
+  const [availableKits, setAvailableKits] = useState([]);
+  const [isLoadingKits, setIsLoadingKits] = useState(false);
 
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
+  const [isAssigning, setIsAssigning] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [createdPatientId, setCreatedPatientId] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -36,6 +42,25 @@ export const AddPatientForm = () => {
         ...prev,
         [name]: ''
       }));
+    }
+  };
+
+  // Fetch available kits when component mounts
+  useEffect(() => {
+    fetchAvailableKits();
+  }, []);
+
+  const fetchAvailableKits = async () => {
+    try {
+      setIsLoadingKits(true);
+      const result = await apiRequest('/v1/kits/available', { method: 'GET' });
+      if (result.success && result.data) {
+        setAvailableKits(result.data);
+      }
+    } catch (error) {
+      console.error('Error fetching available kits:', error);
+    } finally {
+      setIsLoadingKits(false);
     }
   };
 
@@ -89,40 +114,101 @@ export const AddPatientForm = () => {
     }
     
     setIsLoading(true);
+    setErrors({});
     
     try {
-      const result = await apiRequest('/patients', {
+      // First call: Create patient
+      // Explicitly whitelist only valid patient fields - exclude kit_id (handled separately)
+      const patientPayload = {
+        national_id: formData.national_id,
+        full_name: formData.full_name,
+        phone: formData.phone,
+        email: formData.email,
+        date_of_birth: formData.date_of_birth,
+        address: formData.address,
+        medical_history: formData.medical_history,
+        phobia_type: formData.phobia_type,
+        phobia_triggers: formData.phobia_triggers,
+        calming_factors: formData.calming_factors,
+        emergency_contact_name: formData.emergency_contact_name,
+        emergency_contact_phone: formData.emergency_contact_phone
+      };
+      
+      const patientResult = await apiRequest('/patients', {
         method: 'POST',
-        body: JSON.stringify(formData),
+        body: JSON.stringify(patientPayload),
       });
       
-      if (result.success) {
-        setSuccess(true);
-        setFormData({
-          national_id: '',
-          full_name: '',
-          phone: '',
-          email: '',
-          date_of_birth: '',
-          address: '',
-          medical_history: '',
-          phobia_type: 'Flight',
-          phobia_triggers: '',
-          calming_factors: '',
-          emergency_contact_name: '',
-          emergency_contact_phone: ''
-        });
-        setCurrentStep(1);
-        
-        // Reset success after 3 seconds
-        setTimeout(() => setSuccess(false), 3000);
-      } else {
-        setErrors({ general: result.error || 'Failed to create patient' });
+      // If patient creation failed, surface server error and stop
+      if (!patientResult.success) {
+        setErrors({ general: patientResult.error || 'Failed to create patient' });
+        setIsLoading(false);
+        return;
       }
+      
+      // Extract patient ID from response
+      const patientId = patientResult.data?.id || patientResult.data?.patient_id;
+      
+      if (!patientId) {
+        setErrors({ general: 'Patient created but server did not return patient ID for kit assignment' });
+        setIsLoading(false);
+        return;
+      }
+      
+      setCreatedPatientId(patientId);
+      
+      // Second call: Assign kit if selected
+      if (formData.kit_id && formData.kit_id !== '') {
+        setIsAssigning(true);
+        
+        const assignmentResult = await apiRequest('/v1/assignments/assign', {
+          method: 'POST',
+          body: JSON.stringify({
+            patient_id: patientId,
+            kit_id: formData.kit_id
+          }),
+        });
+        
+        setIsAssigning(false);
+        
+        if (!assignmentResult.success) {
+          // Patient was created but assignment failed
+          setSuccess(true);
+          setErrors({ 
+            general: 'Patient created successfully, but kit assignment failed: ' + (assignmentResult.error || 'Unknown error')
+          });
+          setIsLoading(false);
+          return;
+        }
+      }
+      
+      // Full success
+      setSuccess(true);
+      setFormData({
+        national_id: '',
+        full_name: '',
+        phone: '',
+        email: '',
+        date_of_birth: '',
+        address: '',
+        medical_history: '',
+        phobia_type: 'Flight',
+        phobia_triggers: '',
+        calming_factors: '',
+        emergency_contact_name: '',
+        emergency_contact_phone: '',
+        kit_id: ''
+      });
+      setCurrentStep(1);
+      
+      // Reset success after 3 seconds
+      setTimeout(() => setSuccess(false), 3000);
+      
     } catch (error) {
       setErrors({ general: 'Network error. Please try again.' });
     } finally {
       setIsLoading(false);
+      setIsAssigning(false);
     }
   };
 
@@ -153,6 +239,10 @@ export const AddPatientForm = () => {
           <div className={`add-patient-form__step ${currentStep >= 2 ? 'active' : ''}`}>
             <span className="add-patient-form__step-number">2</span>
             <span className="add-patient-form__step-title">Medical & Phobia</span>
+          </div>
+          <div className={`add-patient-form__step ${currentStep >= 3 ? 'active' : ''}`}>
+            <span className="add-patient-form__step-number">3</span>
+            <span className="add-patient-form__step-title">Kit Assignment</span>
           </div>
         </div>
       </div>
@@ -443,13 +533,70 @@ export const AddPatientForm = () => {
               </button>
               
               <button
+                type="button"
+                onClick={nextStep}
+                className="add-patient-form__button add-patient-form__button--secondary"
+              >
+                Next Step
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Equipment Assignment */}
+        {currentStep === 3 && (
+          <div className="add-patient-form__step-content">
+            <div className="add-patient-form__row">
+              {/* Kit Selection */}
+              <div className="add-patient-form__field">
+                <label htmlFor="kit_id" className="add-patient-form__label">
+                  Equipment Kit (Optional)
+                </label>
+                <select
+                  id="kit_id"
+                  name="kit_id"
+                  className="add-patient-form__select"
+                  value={formData.kit_id}
+                  onChange={handleChange}
+                  disabled={isLoadingKits || isLoading}
+                >
+                  <option value="">Assign Later / No Kit</option>
+                  {isLoadingKits ? (
+                    <option value="" disabled>Loading available kits...</option>
+                  ) : availableKits.length === 0 ? (
+                    <option value="" disabled>No available kits</option>
+                  ) : (
+                    availableKits.map((kit) => (
+                      <option key={kit.kit_id} value={kit.kit_id}>
+                        Kit #{kit.kit_id.slice(0, 8)}... (VR: {kit.vr_device_id.slice(0, 8)}..., Watch: {kit.watch_device_id.slice(0, 8)}...)
+                      </option>
+                    ))
+                  )}
+                </select>
+                <p className="add-patient-form__hint">
+                  Select a kit to assign to this patient, or choose "Assign Later" to skip for now.
+                </p>
+              </div>
+            </div>
+
+            <div className="add-patient-form__actions">
+              <button
+                type="button"
+                onClick={prevStep}
+                className="add-patient-form__button add-patient-form__button--secondary"
+                disabled={isLoading || isAssigning}
+              >
+                Previous Step
+              </button>
+              
+              <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || isAssigning}
                 className={`add-patient-form__button ${
-                  isLoading ? 'add-patient-form__button--loading' : ''
+                  isLoading || isAssigning ? 'add-patient-form__button--loading' : ''
                 }`}
               >
-                {isLoading ? 'Creating Patient...' : 'Create Patient'}
+                {isLoading ? 'Creating Patient...' : isAssigning ? 'Assigning Kit...' : 'Create Patient'}
               </button>
             </div>
           </div>

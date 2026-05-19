@@ -266,6 +266,24 @@ As a therapist, I want a data-driven recommendation on whether the patient is re
 - **FE:** Add a searchable Live Dropdown displaying available kits (e.g., "Kit #5 - Watch 4, Quest 2").
 - **UX Location:** Sidebar -> `Clinical -> Add Patient -> Step 3: Equipment`.
 
+🌟 [NEW] FE (Patient Profile - Active Equipment View):
+* Add an "Active Equipment" card/section inside the first tab ("Personal Info") of the Patient Profile page.
+* If the patient has an assigned kit: Display the kit details (Kit ID, VR Device ID, Watch Device ID) and the assignment date (`assigned_at`).
+* If no kit is assigned: Display a clear message stating "No equipment currently assigned".
+
+🌟 [NEW] FE (Release Kit Action):
+* Inside the "Active Equipment" card (in the Personal Info tab), add a "Return Kit" button.
+* Clicking the button will show a short Confirmation Modal to prevent accidental actions.
+* Confirming the modal will trigger a call to `PATCH /api/v1/assignments/release` and update the UI in real-time (the kit will disappear from the profile).
+
+🌟 [NEW] FE (Assign Kit to Existing Patient):
+* If the patient does not have an assigned kit, display an "Assign Kit" button in the Active Equipment card.
+* Clicking it will open a Modal with the same searchable dropdown of available kits (just like in Step 3 of the Wizard), allowing the therapist to assign a kit using `POST /api/v1/assignments/assign`. On success, the tab will refresh to display the newly assigned kit.
+
+UX (UI Locations):
+* Onboarding: Sidebar -> Clinical -> Add Patient -> Step 3: Kit Assignment.
+* Lifecycle Management: Sidebar -> Clinical -> Patients -> Click on a patient (Patient Profile) -> Personal Info tab -> Active Equipment card.
+
 #### User Story 6.3: Async Device-to-Patient Routing & Profile Management
 - **Description:** As a system/clinician, I want to route incoming async device data to the correctly assigned patient and manage the equipment from the patient's profile.
 - **BE:** Update Socket.io Handshake to validate `deviceId` against the `devices` table upon connection.

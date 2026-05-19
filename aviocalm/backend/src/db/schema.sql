@@ -8,6 +8,7 @@ DROP TABLE IF EXISTS anxiety_profiles CASCADE;
 DROP TABLE IF EXISTS medical_norms CASCADE;
 DROP TABLE IF EXISTS appointments CASCADE;
 DROP TABLE IF EXISTS sessions CASCADE;
+DROP TABLE IF EXISTS patient_assignments CASCADE;
 DROP TABLE IF EXISTS patients CASCADE;
 DROP TABLE IF EXISTS kits CASCADE;
 DROP TABLE IF EXISTS devices CASCADE;
@@ -130,6 +131,20 @@ CREATE TABLE kits (
     watch_device_id UUID NOT NULL REFERENCES devices(device_id)
 );
 
+-- Patient Assignments Table (Epic 6.2)
+-- Tracks which kit is currently assigned to which patient
+CREATE TABLE patient_assignments (
+    assignment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id UUID NOT NULL REFERENCES patients(id),
+    kit_id UUID NOT NULL REFERENCES kits(kit_id),
+    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    unassigned_at TIMESTAMP
+);
+
+-- Create unique partial index to prevent double-booking of kits
+-- Only applies to active assignments (where unassigned_at IS NULL)
+CREATE UNIQUE INDEX idx_unique_active_kit ON patient_assignments (kit_id) WHERE unassigned_at IS NULL;
+
 -- Create indexes for better performance
 CREATE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_users_role ON users(role);
@@ -146,6 +161,9 @@ CREATE INDEX idx_devices_type ON devices(device_type);
 CREATE INDEX idx_devices_status ON devices(status);
 CREATE INDEX idx_kits_vr_device ON kits(vr_device_id);
 CREATE INDEX idx_kits_watch_device ON kits(watch_device_id);
+CREATE INDEX idx_patient_assignments_patient ON patient_assignments(patient_id);
+CREATE INDEX idx_patient_assignments_kit ON patient_assignments(kit_id);
+CREATE INDEX idx_patient_assignments_assigned_at ON patient_assignments(assigned_at);
 
 -- Insert default owner user (admin / Admin123!)
 -- Password: Admin123! (meets requirements: 8+ chars, uppercase, lowercase, special, number)

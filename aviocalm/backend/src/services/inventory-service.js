@@ -146,11 +146,11 @@ class InventoryService {
 
     /**
      * Get available kits (not currently assigned to a patient)
-     * @returns {Promise<Array>} Array of available kits
+     * Returns kits that do NOT have an active assignment (unassigned_at IS NULL)
+     * AND where both inner devices are 'Active'
+     * @returns {Promise<Array>} Array of available kits with device details
      */
     async getAvailableKits() {
-        // Note: This will be implemented after patient_assignments table is created
-        // For now, return all kits
         const query = `
             SELECT 
                 k.kit_id,
@@ -161,8 +161,12 @@ class InventoryService {
                 w.device_type as watch_device_type,
                 w.status as watch_status
             FROM kits k
-            LEFT JOIN devices vr ON k.vr_device_id = vr.device_id
-            LEFT JOIN devices w ON k.watch_device_id = w.device_id
+            LEFT JOIN patient_assignments pa ON k.kit_id = pa.kit_id AND pa.unassigned_at IS NULL
+            JOIN devices vr ON k.vr_device_id = vr.device_id
+            JOIN devices w ON k.watch_device_id = w.device_id
+            WHERE pa.assignment_id IS NULL
+            AND vr.status = 'Active'
+            AND w.status = 'Active'
             ORDER BY k.kit_id
         `;
 

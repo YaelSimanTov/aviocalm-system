@@ -1,58 +1,60 @@
 const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
 
+// Database connection
 const pool = new Pool({
-  user: 'postgres',
   host: 'localhost',
-  database: 'aviocalm',
-  password: 'postgres',
   port: 5433,
+  database: 'aviocalm',
+  user: 'postgres',
+  password: 'postgres'
 });
 
-const createNewTherapistUser = async () => {
+async function createTherapistUser() {
   try {
-    // Hash the password with bcrypt
-    const password = 'FirstTime123!';
+    // User details
+    const username = 'therapist3';
+    const plainPassword = 'Password123!';
+    const role = 'Therapist';
+    const firstName = 'Test';
+    const lastName = 'Therapist';
+    
+    // Generate salt and hash password
     const saltRounds = 10;
     const salt = await bcrypt.genSalt(saltRounds);
-    const passwordHash = await bcrypt.hash(password, salt);
-
-    console.log('Creating new therapist user...');
-    console.log('Username: new_therapist');
-    console.log('Password: new_therapist');
-    console.log('Role: Therapist');
-    console.log('is_first_login: true');
-
-    // Insert the new user
+    const passwordHash = await bcrypt.hash(plainPassword, salt);
+    
+    console.log('Generated salt:', salt);
+    console.log('Generated hash:', passwordHash);
+    
+    // Insert user into database
     const insertQuery = `
-      INSERT INTO users (username, password_hash, salt, role, is_first_login, first_name, last_name)
+      INSERT INTO users (username, password_hash, salt, role, is_first_login, first_name, last_name) 
       VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING user_id, username, role, is_first_login, first_name, last_name
+      RETURNING user_id, username, role, is_first_login;
     `;
     
-    const result = await pool.query(insertQuery, [
-      'new_therapist',
-      passwordHash,
-      salt,
-      'Therapist',
-      true,
-      'New',
-      'User'
-    ]);
-
-    const newUser = result.rows[0];
-    console.log('\n✅ New therapist user created successfully:');
-    console.log(`User ID: ${newUser.user_id}`);
-    console.log(`Username: ${newUser.username}`);
-    console.log(`Role: ${newUser.role}`);
-    console.log(`is_first_login: ${newUser.is_first_login}`);
-    console.log(`Name: ${newUser.first_name} ${newUser.last_name}`);
-
+    const values = [username, passwordHash, salt, role, true, firstName, lastName];
+    const result = await pool.query(insertQuery, values);
+    
+    console.log('\n✅ Therapist user created successfully!');
+    console.log('User details:', result.rows[0]);
+    console.log('\nLogin credentials:');
+    console.log('Username:', username);
+    console.log('Password:', plainPassword);
+    console.log('Role:', role);
+    console.log('First Login:', true);
+    
   } catch (error) {
-    console.error('Error creating user:', error);
+    console.error('❌ Error creating therapist user:', error);
+    
+    // Check if it's a duplicate username error
+    if (error.code === '23505') {
+      console.log('\n💡 Username "therapist_test" already exists. Try a different username.');
+    }
   } finally {
     await pool.end();
   }
-};
+}
 
-createNewTherapistUser();
+createTherapistUser();

@@ -110,6 +110,10 @@
   @apply mt-1 text-sm text-red-600;
 }
 
+.add-patient-form__hint {
+  @apply mt-1 text-sm text-gray-500;
+}
+
 .add-patient-form__actions {
   @apply flex justify-between;
 }
