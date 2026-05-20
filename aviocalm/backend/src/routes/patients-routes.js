@@ -6,6 +6,8 @@ const {
   getPatientById, 
   createPatient,
   updatePatient,
+  updatePatientStatus,
+  markSessionsAsRead,
   completeSession,
   getPatientSessions,
   getSessionAnalytics
@@ -25,6 +27,12 @@ router.post('/', createPatient);
 
 // PUT /api/patients/:id - Update patient by ID (role-based)
 router.put('/:id', updatePatient);
+
+// PUT /api/patients/:id/status - Update patient status inline (Active | Inactive | Discharged)
+router.put('/:id/status', updatePatientStatus);
+
+// PUT /api/patients/:id/sessions/read - Mark all completed sessions as reviewed
+router.put('/:id/sessions/read', markSessionsAsRead);
 
 // POST /api/sessions/:sessionId/complete - Complete session with HRV calculation
 router.post('/sessions/:sessionId/complete', completeSession);

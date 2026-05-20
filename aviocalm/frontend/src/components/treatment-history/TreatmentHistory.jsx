@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiRequest } from '../../utils/api';
+import { apiRequest, api } from '../../utils/api';
 import {
   LineChart,
   Line,
@@ -29,7 +29,7 @@ const COLORS = {
 
 // VR State colors for background areas (matching exact game design flow)
 const VR_STATE_COLORS = {
-  'BoardingState': '#dbeafe',      // light blue - Lobby
+  'BoardingState': '#dbeafe',      // light blue - Boarding
   'TakeOffState': '#fed7aa',       // light orange/red - Takeoff
   'InFlightState': '#a7f3d0',      // emerald green - Cruising
   'LandingState': '#e9d5ff',       // light purple - Landing
@@ -38,15 +38,24 @@ const VR_STATE_COLORS = {
   'Default': '#f3f4f6'             // light gray
 };
 
-// Stage name translations for display
+// Stage name translations for display (used in tooltip and analytics)
 const STAGE_NAMES = {
-  'BoardingState': 'Lobby',
-  'TakeOffState': 'Takeoff',
+  'BoardingState': 'Boarding',
+  'TakeOffState':  'Takeoff',
   'InFlightState': 'Cruising',
-  'LandingState': 'Landing',
-  'LandedState': 'Completed',
-  'PausedState': 'Paused'
+  'LandingState':  'Landing',
+  'LandedState':   'Completed',
+  'PausedState':   'Paused'
 };
+
+// Ordered list of the 5 stages shown in the chart legend (excludes Paused)
+const LEGEND_STAGES = [
+  { state: 'BoardingState', label: 'Boarding'  },
+  { state: 'TakeOffState',  label: 'Takeoff'   },
+  { state: 'InFlightState', label: 'Cruising'  },
+  { state: 'LandingState',  label: 'Landing'   },
+  { state: 'LandedState',   label: 'Completed' },
+];
 
 // Treatment History Component
 export const TreatmentHistory = ({ patientId }) => {
@@ -66,6 +75,18 @@ export const TreatmentHistory = ({ patientId }) => {
     }
   }, [patientId]);
 
+  // Mark all completed sessions as reviewed ONLY when the component truly unmounts.
+  // The 500ms mount-time guard prevents React Strict Mode's fake unmount (fires within ~1ms)
+  // from calling the API during development double-invoke, while still firing on real navigation.
+  useEffect(() => {
+    if (!patientId) return;
+    const mountTime = Date.now();
+    return () => {
+      if (Date.now() - mountTime < 500) return;
+      api.markSessionsRead(patientId);
+    };
+  }, [patientId]);
+
   // Fetch sessions from API
   const fetchSessions = async () => {
     try {
@@ -75,6 +96,7 @@ export const TreatmentHistory = ({ patientId }) => {
       const result = await apiRequest(`/patients/${patientId}/sessions`);
       
       if (result.success) {
+        console.log('Sessions payload in TreatmentHistory:', result.data);
         setSessions(result.data);
       } else {
         setError(result.error || 'Failed to fetch sessions');
@@ -118,10 +140,14 @@ export const TreatmentHistory = ({ patientId }) => {
     fetchSessionAnalytics(session.id);
   };
 
-  // Format date for display
+  // Format date for display in Israel local time (IDT/IST, GMT+3).
+  // PostgreSQL TIMESTAMP WITHOUT TIME ZONE returns strings without a 'Z' suffix
+  // (e.g. "2026-05-20T15:30:00.123"), causing browsers to treat them as local time
+  // instead of UTC. Appending 'Z' forces correct UTC parsing before conversion.
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleString();
+    const asUtc = dateString.endsWith('Z') ? dateString : `${dateString}Z`;
+    return new Date(asUtc).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' });
   };
 
   // Format duration for display
@@ -137,14 +163,16 @@ export const TreatmentHistory = ({ patientId }) => {
     if (!timeSeriesData || timeSeriesData.length === 0) return [];
     
     const blocks = [];
-    let currentVrState = timeSeriesData[0].vrState;
+    // Guard against null/undefined vrState values from unresolved device streams
+    let currentVrState = timeSeriesData[0].vrState || 'Default';
     let startIndex = 0;
     
     for (let i = 1; i < timeSeriesData.length; i++) {
       const entry = timeSeriesData[i];
+      const entryState = entry.vrState || 'Default';
       
       // If VR state changes, create a block for the previous state
-      if (entry.vrState !== currentVrState) {
+      if (entryState !== currentVrState) {
         blocks.push({
           startIndex: startIndex,
           endIndex: i - 1,
@@ -153,7 +181,7 @@ export const TreatmentHistory = ({ patientId }) => {
         });
         
         // Start new block
-        currentVrState = entry.vrState;
+        currentVrState = entryState;
         startIndex = i;
       }
     }
@@ -204,7 +232,7 @@ export const TreatmentHistory = ({ patientId }) => {
           <div className="treatment-history__spinner">
             <svg className="treatment-history__spinner-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle className="treatment-history__spinner-circle" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="treatment-history__spinner-path" fill="currentColor" d="M4 12a8 8 0 0 18-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 18 5.291 0 12h4z"></path>
+              <path className="treatment-history__spinner-path" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
             Loading treatment sessions...
           </div>
@@ -254,10 +282,22 @@ export const TreatmentHistory = ({ patientId }) => {
                 </tr>
               </thead>
               <tbody>
-                {sessions.map((session) => (
+                {sessions.map((session) => {
+                  console.log('[TreatmentHistory Row]', { id: session.id, status: session.status, is_reviewed: session.is_reviewed, type_of_reviewed: typeof session.is_reviewed });
+                  return (
                   <tr key={session.id} className="treatment-history__table-row">
                     <td className="treatment-history__table-cell">
-                      {formatDate(session.started_at)}
+                      <span className="inline-flex items-center gap-2">
+                        {formatDate(session.started_at)}
+                        {/* Blue dot for completed sessions the therapist hasn't seen yet.
+                            Explicit false/null check covers every falsy DB return value. */}
+                        {!session.is_reviewed && session.status === 'Completed' && (
+                          <span
+                            className="inline-block w-2.5 h-2.5 rounded-full bg-blue-600 mr-2"
+                            title="Unread Session"
+                          ></span>
+                        )}
+                      </span>
                     </td>
                     <td className="treatment-history__table-cell">
                       {formatDuration(session.duration_minutes)}
@@ -301,7 +341,8 @@ export const TreatmentHistory = ({ patientId }) => {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -330,7 +371,7 @@ export const TreatmentHistory = ({ patientId }) => {
               <div className="treatment-history__spinner">
                 <svg className="treatment-history__spinner-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="treatment-history__spinner-circle" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="treatment-history__spinner-path" fill="currentColor" d="M4 12a8 8 0 0 18-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 18 5.291 0 12h4z"></path>
+                  <path className="treatment-history__spinner-path" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
                 Loading analytics...
               </div>
@@ -359,25 +400,22 @@ export const TreatmentHistory = ({ patientId }) => {
                   
                   return (
                     <>
-                      {/* Render VR Stage Legend */}
+                      {/* Render VR Stage Legend — exactly 5 stages in flight order */}
                       <div className="flex flex-wrap justify-center gap-6 mb-4 text-sm font-medium text-gray-600">
-                        {Object.entries(STAGE_NAMES).map(([state, name]) => {
-                          if (state === 'PausedState' || !VR_STATE_COLORS[state]) return null;
-                          return (
-                            <div key={state} className="flex items-center gap-2">
-                              <div 
-                                style={{ 
-                                  width: '16px', 
-                                  height: '16px', 
-                                  backgroundColor: VR_STATE_COLORS[state], 
-                                  opacity: 0.7, 
-                                  borderRadius: '4px' 
-                                }}
-                              />
-                              <span>{name}</span>
-                            </div>
-                          );
-                        })}
+                        {LEGEND_STAGES.map(({ state, label }) => (
+                          <div key={state} className="flex items-center gap-2">
+                            <div
+                              style={{
+                                width: '16px',
+                                height: '16px',
+                                backgroundColor: VR_STATE_COLORS[state],
+                                opacity: 0.7,
+                                borderRadius: '4px'
+                              }}
+                            />
+                            <span>{label}</span>
+                          </div>
+                        ))}
                       </div>
                       <ResponsiveContainer width="100%" height={300}>
                         <LineChart data={chartData} margin={{ top: 20, right: 30, left: 10, bottom: 40 }}>
@@ -401,14 +439,16 @@ export const TreatmentHistory = ({ patientId }) => {
                             strokeDasharray="4 4" 
                             label={{ position: 'insideTopLeft', value: 'Baseline', fill: '#374151', fontSize: 14, fontWeight: 'bold' }} 
                           />
-                          <XAxis 
-                            dataKey="dataIndex" 
+                          <XAxis
+                            type="number"
+                            dataKey="dataIndex"
+                            domain={[0, chartData.length - 1]}
                             tickFormatter={(val) => chartData[val]?.timestamp ? new Date(chartData[val].timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                            minTickGap={15} 
-                            angle={-35} 
-                            textAnchor="end" 
-                            height={60} 
-                            tick={{ fontSize: 12 }} 
+                            minTickGap={15}
+                            angle={-35}
+                            textAnchor="end"
+                            height={60}
+                            tick={{ fontSize: 12 }}
                           />
                           <YAxis yAxisId="left" domain={['dataMin - 10', 'dataMax + 10']} label={{ value: 'Heart Rate (BPM)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#3b82f6', fontWeight: 'bold' } }} />
                           <YAxis yAxisId="right" orientation="right" domain={[0, 100]} label={{ value: 'Stress Score', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fill: '#8b5cf6', fontWeight: 'bold' } }} />
@@ -424,6 +464,7 @@ export const TreatmentHistory = ({ patientId }) => {
                                     <p className="tooltip-time">{time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}</p>
                                     <p className="tooltip-metric">Heart Rate: {data.avgHeartRate} BPM</p>
                                     <p className="tooltip-metric">Stress Score: {data.avgStressScore}</p>
+                                    <p className="tooltip-metric">SpO₂: {data.avgSpo2 ? `${data.avgSpo2}%` : 'N/A'}</p>
                                     <p className="tooltip-state">Stage: {stageName} ({data.difficulty})</p>
                                   </div>
                                 );
@@ -491,32 +532,48 @@ export const TreatmentHistory = ({ patientId }) => {
                 </div>
               </div>
 
-              {/* Session Summary */}
-              <div className="treatment-history__session-summary">
-                <h4 className="treatment-history__summary-title">Session Summary</h4>
-                <div className="treatment-history__summary-grid">
-                  <div className="treatment-history__summary-item">
-                    <span className="treatment-history__summary-label">Total Data Points:</span>
-                    <span className="treatment-history__summary-value">
-                      {analyticsData.timeSeriesData.reduce((sum, point) => sum + (point.dataPoints || 0), 0)}
-                    </span>
+              {/* Session Summary — 4 macro-metric cards */}
+              {(() => {
+                const ts = analyticsData.timeSeriesData;
+
+                // Total raw data points across all windows
+                const totalDataPoints = ts.reduce((sum, p) => sum + (p.dataPoints || 0), 0);
+
+                // Average stress across all windows
+                const avgStress = ts.length > 0
+                  ? (ts.reduce((sum, p) => sum + (p.avgStressScore || 0), 0) / ts.length).toFixed(1)
+                  : '0';
+
+                // Average SpO2 — filter out null / zero values before averaging
+                const validSpo2 = ts.filter(p => p.avgSpo2 != null && p.avgSpo2 > 0);
+                const avgSpo2 = validSpo2.length > 0
+                  ? Math.round(validSpo2.reduce((sum, p) => sum + p.avgSpo2, 0) / validSpo2.length)
+                  : null;
+
+                const cards = [
+                  { label: 'Total Data Points', value: totalDataPoints },
+                  { label: 'Time Windows',      value: ts.length },
+                  { label: 'Average Stress',    value: avgStress },
+                  { label: 'Average SpO₂',      value: avgSpo2 != null ? `${avgSpo2}%` : 'N/A' },
+                ];
+
+                return (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="text-base font-semibold text-gray-900 mb-4">Session Summary</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {cards.map(({ label, value }) => (
+                        <div
+                          key={label}
+                          className="flex flex-col p-3 bg-white rounded-md border border-gray-200"
+                        >
+                          <span className="text-sm text-gray-500 font-medium mb-1">{label}</span>
+                          <span className="text-base font-semibold text-gray-900">{value}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="treatment-history__summary-item">
-                    <span className="treatment-history__summary-label">Time Windows:</span>
-                    <span className="treatment-history__summary-value">
-                      {analyticsData.timeSeriesData.length}
-                    </span>
-                  </div>
-                  <div className="treatment-history__summary-item">
-                    <span className="treatment-history__summary-label">Average Stress:</span>
-                    <span className="treatment-history__summary-value">
-                      {analyticsData.timeSeriesData.reduce((sum, point) => sum + (point.avgStressScore || 0), 0) / analyticsData.timeSeriesData.length > 0
-                        ? (analyticsData.timeSeriesData.reduce((sum, point) => sum + (point.avgStressScore || 0), 0) / analyticsData.timeSeriesData.length).toFixed(1)
-                        : '0'}
-                    </span>
-                  </div>
-                </div>
-              </div>
+                );
+              })()}
             </div>
           ) : null}
         </div>

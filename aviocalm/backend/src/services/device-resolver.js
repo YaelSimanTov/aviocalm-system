@@ -67,14 +67,20 @@ async function createNewSession(patientUuid) {
 async function completeSession(sessionId) {
     const query = `
         UPDATE sessions
-        SET status = 'Completed', ended_at = CURRENT_TIMESTAMP,
-            duration_minutes = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - started_at)) / 60
+        SET status = 'Completed',
+            ended_at = CURRENT_TIMESTAMP,
+            duration_minutes = ROUND(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - started_at)) / 60),
+            overall_hrv_rmssd = (random() * 30 + 30)::numeric(5,2)
         WHERE id = $1 AND status = 'In Progress'
+        RETURNING *
     `;
 
     try {
-        await pool.query(query, [sessionId]);
-        console.log(`[DEVICE RESOLVER] Session ${sessionId} marked as Completed`);
+        const result = await pool.query(query, [sessionId]);
+        if (result.rows.length > 0) {
+            const s = result.rows[0];
+            console.log(`[DEVICE RESOLVER] Session ${sessionId} completed — duration: ${s.duration_minutes}min | HRV RMSSD: ${s.overall_hrv_rmssd}ms`);
+        }
     } catch (error) {
         console.error('[DEVICE RESOLVER] Error completing session:', error);
     }

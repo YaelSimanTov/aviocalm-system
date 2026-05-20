@@ -58,7 +58,8 @@ CREATE TABLE sessions (
     ended_at TIMESTAMP,
     duration_minutes INTEGER,
     overall_hrv_rmssd DECIMAL(5,2),
-    status VARCHAR(20) DEFAULT 'In Progress' CHECK (status IN ('In Progress', 'Completed', 'Halted'))
+    status VARCHAR(20) DEFAULT 'In Progress' CHECK (status IN ('In Progress', 'Completed', 'Halted')),
+    is_reviewed BOOLEAN DEFAULT false
 );
 
 -- Anxiety Profiles Table (Epic 3.1)

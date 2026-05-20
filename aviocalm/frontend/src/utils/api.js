@@ -97,6 +97,19 @@ export const api = {
   delete: (endpoint) => {
     return apiRequest(endpoint, { method: 'DELETE' });
   },
+  // Update a patient's status (Active | Inactive | Discharged)
+  updatePatientStatus: (patientId, newStatus) => {
+    return apiRequest(`/patients/${patientId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: newStatus }),
+    });
+  },
+  // Mark all completed sessions for a patient as reviewed (clears unread indicators)
+  markSessionsRead: (patientId) => {
+    return apiRequest(`/patients/${patientId}/sessions/read`, {
+      method: 'PUT',
+    });
+  },
 };
 
 export default api;

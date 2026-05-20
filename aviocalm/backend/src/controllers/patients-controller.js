@@ -9,21 +9,32 @@ const getAllPatients = async (req, res) => {
     
     let query, params;
     
+    // Subquery that returns true when the patient has at least one completed, unreviewed session
+    const unreadSubquery = `
+      EXISTS (
+        SELECT 1 FROM sessions s
+        WHERE s.patient_id = p.id
+          AND s.status = 'Completed'
+          AND s.is_reviewed = false
+      )`;
+
     if (role === 'Owner') {
       // Owner sees all patients, with optional search
       if (search) {
         query = `
-          SELECT id, full_name, national_id, phobia_type, created_at
-          FROM patients 
-          WHERE full_name ILIKE $1 OR national_id ILIKE $1
-          ORDER BY full_name ASC
+          SELECT p.id, p.full_name, p.national_id, p.phobia_type, p.status, p.created_at,
+                 ${unreadSubquery} AS has_unread_sessions
+          FROM patients p
+          WHERE p.full_name ILIKE $1 OR p.national_id ILIKE $1
+          ORDER BY p.full_name ASC
         `;
         params = [`%${search}%`];
       } else {
         query = `
-          SELECT id, full_name, national_id, phobia_type, created_at
-          FROM patients 
-          ORDER BY full_name ASC
+          SELECT p.id, p.full_name, p.national_id, p.phobia_type, p.status, p.created_at,
+                 ${unreadSubquery} AS has_unread_sessions
+          FROM patients p
+          ORDER BY p.full_name ASC
         `;
         params = [];
       }
@@ -31,18 +42,20 @@ const getAllPatients = async (req, res) => {
       // Therapists see only their own patients, with optional search
       if (search) {
         query = `
-          SELECT id, full_name, national_id, phobia_type, created_at
-          FROM patients 
-          WHERE therapist_id = $1 AND (full_name ILIKE $2 OR national_id ILIKE $2)
-          ORDER BY full_name ASC
+          SELECT p.id, p.full_name, p.national_id, p.phobia_type, p.status, p.created_at,
+                 ${unreadSubquery} AS has_unread_sessions
+          FROM patients p
+          WHERE p.therapist_id = $1 AND (p.full_name ILIKE $2 OR p.national_id ILIKE $2)
+          ORDER BY p.full_name ASC
         `;
         params = [userId, `%${search}%`];
       } else {
         query = `
-          SELECT id, full_name, national_id, phobia_type, created_at
-          FROM patients 
-          WHERE therapist_id = $1
-          ORDER BY full_name ASC
+          SELECT p.id, p.full_name, p.national_id, p.phobia_type, p.status, p.created_at,
+                 ${unreadSubquery} AS has_unread_sessions
+          FROM patients p
+          WHERE p.therapist_id = $1
+          ORDER BY p.full_name ASC
         `;
         params = [userId];
       }
@@ -439,7 +452,7 @@ const getPatientSessions = async (req, res) => {
       });
     }
     
-    // Query sessions for patient with difficulty levels
+    // Query sessions for patient with difficulty levels and review state
     const sessionsQuery = `
       SELECT 
         s.id,
@@ -447,6 +460,7 @@ const getPatientSessions = async (req, res) => {
         s.duration_minutes,
         s.overall_hrv_rmssd,
         s.status,
+        s.is_reviewed,
         COALESCE(
           json_agg(DISTINCT ap.difficulty) FILTER (WHERE ap.difficulty IS NOT NULL),
           '[]'::json
@@ -454,7 +468,7 @@ const getPatientSessions = async (req, res) => {
       FROM sessions s
       LEFT JOIN anxiety_profiles ap ON s.id = ap.session_id
       WHERE s.patient_id = $1
-      GROUP BY s.id, s.started_at, s.duration_minutes, s.overall_hrv_rmssd, s.status
+      GROUP BY s.id, s.started_at, s.duration_minutes, s.overall_hrv_rmssd, s.status, s.is_reviewed
       ORDER BY s.started_at DESC
     `;
     
@@ -510,14 +524,15 @@ const getSessionAnalytics = async (req, res) => {
       });
     }
     
-    // Fetch raw anxiety profiles data
+    // Fetch raw anxiety profiles data (spo2 included so processWindow can average it)
     const rawDataQuery = `
       SELECT 
         recorded_at,
         vr_state,
         difficulty,
         heart_rate,
-        stress_score
+        stress_score,
+        spo2
       FROM anxiety_profiles 
       WHERE session_id = $1
       ORDER BY recorded_at ASC
@@ -600,14 +615,15 @@ function downsampleData(data, windowSizeMs) {
 
 // Helper function to process a window of data
 function processWindow(windowData) {
-  const avgHeartRate = windowData.reduce((sum, point) => sum + (point.heart_rate || 0), 0) / windowData.length;
+  const avgHeartRate  = windowData.reduce((sum, point) => sum + (point.heart_rate   || 0), 0) / windowData.length;
   const avgStressScore = windowData.reduce((sum, point) => sum + (point.stress_score || 0), 0) / windowData.length;
-  
+  const avgSpo2       = windowData.reduce((sum, point) => sum + (point.spo2         || 0), 0) / windowData.length;
+
   // Find dominant VR state (most frequent)
   const vrStateCounts = {};
   let dominantVrState = windowData[0].vr_state;
   let maxCount = 0;
-  
+
   for (const point of windowData) {
     const state = point.vr_state;
     vrStateCounts[state] = (vrStateCounts[state] || 0) + 1;
@@ -616,14 +632,15 @@ function processWindow(windowData) {
       dominantVrState = state;
     }
   }
-  
+
   return {
-    timestamp: windowData[0].recorded_at,
-    avgHeartRate: Math.round(avgHeartRate),
+    timestamp:      windowData[0].recorded_at,
+    avgHeartRate:   Math.round(avgHeartRate),
     avgStressScore: Math.round(avgStressScore),
-    vrState: dominantVrState,
-    difficulty: windowData[0].difficulty,
-    dataPoints: windowData.length
+    avgSpo2:        Math.round(avgSpo2),
+    vrState:        dominantVrState,
+    difficulty:     windowData[0].difficulty,
+    dataPoints:     windowData.length
   };
 }
 
@@ -666,11 +683,104 @@ function calculateTimeInRange(data) {
   };
 }
 
+// Mark all completed sessions for a patient as reviewed (clears the unread indicator)
+const markSessionsAsRead = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role, userId } = req.user;
+
+    // Verify the patient exists and the requesting user has access
+    const checkQuery = role === 'Owner'
+      ? 'SELECT id FROM patients WHERE id = $1'
+      : 'SELECT id FROM patients WHERE id = $1 AND therapist_id = $2';
+    const checkParams = role === 'Owner' ? [id] : [id, userId];
+
+    const existing = await pool.query(checkQuery, checkParams);
+    if (existing.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient not found or access denied'
+      });
+    }
+
+    await pool.query(
+      `UPDATE sessions
+         SET is_reviewed = true
+       WHERE patient_id = $1
+         AND status = 'Completed'
+         AND is_reviewed = false`,
+      [id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Sessions marked as reviewed'
+    });
+  } catch (error) {
+    console.error('Error marking sessions as read:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+// Update patient status (inline edit from table)
+const updatePatientStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const VALID_STATUSES = ['Active', 'Inactive', 'Discharged'];
+    if (!status || !VALID_STATUSES.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`
+      });
+    }
+
+    const { role, userId } = req.user;
+
+    // Verify the patient exists and the requesting user has access to it
+    const checkQuery = role === 'Owner'
+      ? 'SELECT id FROM patients WHERE id = $1'
+      : 'SELECT id FROM patients WHERE id = $1 AND therapist_id = $2';
+    const checkParams = role === 'Owner' ? [id] : [id, userId];
+
+    const existing = await pool.query(checkQuery, checkParams);
+    if (existing.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient not found or access denied'
+      });
+    }
+
+    const result = await pool.query(
+      'UPDATE patients SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, status',
+      [status, id]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+      message: `Patient status updated to ${status}`
+    });
+  } catch (error) {
+    console.error('Error updating patient status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
 module.exports = {
   getAllPatients,
   getPatientById,
   createPatient,
   updatePatient,
+  updatePatientStatus,
+  markSessionsAsRead,
   completeSession,
   getPatientSessions,
   getSessionAnalytics
