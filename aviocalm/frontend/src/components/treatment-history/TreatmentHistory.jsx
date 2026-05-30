@@ -8,6 +8,7 @@ import './TreatmentHistory.css';
 export const TreatmentHistory = ({ patientId }) => {
   const navigate = useNavigate();
   const [sessions, setSessions] = useState([]);
+  const [sessionAlerts, setSessionAlerts] = useState({});
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState(null);
 
@@ -38,6 +39,8 @@ export const TreatmentHistory = ({ patientId }) => {
       const result = await apiRequest(`/patients/${patientId}/sessions`);
       if (result.success) {
         setSessions(result.data);
+        // Fetch alerts for each session after sessions are loaded
+        fetchAlertsForSessions(result.data);
       } else {
         setError(result.error || 'Failed to fetch sessions');
       }
@@ -46,6 +49,26 @@ export const TreatmentHistory = ({ patientId }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Fetch alerts for all sessions in parallel
+  const fetchAlertsForSessions = async (sessionsData) => {
+    const alertsMap = {};
+    await Promise.all(
+      sessionsData.map(async (session) => {
+        try {
+          const result = await api.getSessionAlerts(session.id);
+          if (result.success && result.data?.alerts) {
+            alertsMap[session.id] = result.data.alerts;
+          } else {
+            alertsMap[session.id] = [];
+          }
+        } catch {
+          alertsMap[session.id] = [];
+        }
+      })
+    );
+    setSessionAlerts(alertsMap);
   };
 
   // Format date for display in Israel local time (IDT/IST, GMT+3).
@@ -78,6 +101,19 @@ export const TreatmentHistory = ({ patientId }) => {
       default:
         return 'status-unknown';
     }
+  };
+
+  // Aggregate alert counts by type for a session
+  const aggregateAlertCounts = (alerts) => {
+    const counts = { Safety: 0, Panic: 0, Statistical: 0 };
+    if (!Array.isArray(alerts)) return counts;
+    alerts.forEach((alert) => {
+      const type = alert.alert_type;
+      if (type === 'Safety') counts.Safety++;
+      else if (type === 'Panic') counts.Panic++;
+      else if (type === 'Statistical') counts.Statistical++;
+    });
+    return counts;
   };
 
   // Render loading state
@@ -133,6 +169,7 @@ export const TreatmentHistory = ({ patientId }) => {
                   <th>Duration</th>
                   <th>HRV RMSSD</th>
                   <th>Difficulty</th>
+                  <th>Alerts</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -181,6 +218,37 @@ export const TreatmentHistory = ({ patientId }) => {
                       ) : (
                         <span className="text-gray-400">N/A</span>
                       )}
+                    </td>
+                    <td className="treatment-history__table-cell">
+                      {(() => {
+                        const alerts = sessionAlerts[session.id] || [];
+                        const counts = aggregateAlertCounts(alerts);
+                        const hasAlerts = counts.Safety > 0 || counts.Panic > 0 || counts.Statistical > 0;
+
+                        if (!hasAlerts) {
+                          return <span className="text-slate-400 text-xs">-</span>;
+                        }
+
+                        return (
+                          <div className="flex gap-2 items-center">
+                            {counts.Safety > 0 && (
+                              <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white bg-red-500">
+                                {counts.Safety}
+                              </div>
+                            )}
+                            {counts.Panic > 0 && (
+                              <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white bg-teal-500">
+                                {counts.Panic}
+                              </div>
+                            )}
+                            {counts.Statistical > 0 && (
+                              <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white bg-amber-500">
+                                {counts.Statistical}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="treatment-history__table-cell">
                       <span className={`treatment-history__status ${getStatusClass(session.status)}`}>

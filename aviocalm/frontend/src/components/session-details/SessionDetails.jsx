@@ -183,6 +183,129 @@ function AlertAnnotationDot({ cx, cy, alert, color, isHovered, onEnter, onLeave 
   );
 }
 
+// ─── Session Event Timeline Sidebar ────────────────────────────────────────────
+
+/**
+ * SessionEventTimeline — chronological event feed displayed alongside the LineChart.
+ * Shows medical alerts (Safety, Panic, Statistical) and VR simulation events in a
+ * single, time-sorted, scrollable list. Each item is color-coded by type.
+ */
+function SessionEventTimeline({ sessionAlerts, chartData }) {
+  // Generate mock VR simulation events based on VR state transitions in chartData
+  const generateVrEvents = (data) => {
+    const events = [];
+    let lastState = null;
+
+    data.forEach((d, i) => {
+      const currentState = d.vrState;
+      const stateName = STAGE_NAMES[currentState] || currentState;
+
+      // Detect VR state changes and log them as simulation events
+      if (currentState !== lastState && currentState) {
+        events.push({
+          id: `vr-${i}`,
+          type: 'VR',
+          alertType: 'Simulation',
+          description: `Phase changed to ${stateName}`,
+          timestamp: d.timestamp,
+        });
+        lastState = currentState;
+      }
+
+      // Add a few contextual mock events at key phases
+      if (currentState === 'TakeOffState' && i === data.findIndex(p => p.vrState === 'TakeOffState')) {
+        events.push({
+          id: `vr-seatbelt-${i}`,
+          type: 'VR',
+          alertType: 'Simulation',
+          description: 'Seatbelt fastened',
+          timestamp: d.timestamp,
+        });
+      }
+      if (currentState === 'LandingState' && i === data.findIndex(p => p.vrState === 'LandingState')) {
+        events.push({
+          id: `vr-landing-${i}`,
+          type: 'VR',
+          alertType: 'Simulation',
+          description: 'Landing gear deployed',
+          timestamp: d.timestamp,
+        });
+      }
+    });
+
+    return events;
+  };
+
+  // Convert medical alerts to event format
+  const alertEvents = sessionAlerts.map((a) => ({
+    id: a.id,
+    type: 'Alert',
+    alertType: a.alert_type,
+    description: a.description,
+    timestamp: a.timestamp,
+  }));
+
+  // Combine alerts and VR events, sort by timestamp
+  const allEvents = [...alertEvents, ...generateVrEvents(chartData)].sort((a, b) => {
+    const timeA = new Date(a.timestamp.endsWith('Z') ? a.timestamp : `${a.timestamp}Z`).getTime();
+    const timeB = new Date(b.timestamp.endsWith('Z') ? b.timestamp : `${b.timestamp}Z`).getTime();
+    return timeA - timeB;
+  });
+
+  // Get border color class based on event type
+  const getBorderColor = (type, alertType) => {
+    if (type === 'VR') return 'border-slate-400';
+    if (alertType === 'Safety') return 'border-red-500';
+    if (alertType === 'Panic') return 'border-teal-500';
+    if (alertType === 'Statistical') return 'border-amber-500';
+    return 'border-slate-400';
+  };
+
+  // Format timestamp for display (e.g., 08:24 AM)
+  const formatTime = (iso) => {
+    return new Date(iso.endsWith('Z') ? iso : `${iso}Z`).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <h2 className="text-sm font-semibold text-gray-700 mb-2">Session Timeline</h2>
+      {/* Scrollable event feed with fixed max-height matching the chart */}
+      <div
+        className="flex-1 overflow-y-auto bg-gray-50 rounded-lg border border-gray-200 p-3 space-y-2"
+        style={{ maxHeight: '500px' }}
+      >
+        {allEvents.length === 0 ? (
+          <div className="text-xs text-gray-400 text-center py-8">No events recorded</div>
+        ) : (
+          allEvents.map((event) => (
+            <div
+              key={event.id}
+              className={`bg-white rounded p-2.5 shadow-sm border-l-4 ${getBorderColor(
+                event.type,
+                event.alertType
+              )}`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-gray-800 truncate">{event.description}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {event.type === 'Alert' ? event.alertType : 'VR Event'}
+                  </p>
+                </div>
+                <p className="text-xs text-gray-400 font-mono whitespace-nowrap">{formatTime(event.timestamp)}</p>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── SessionDetails page ──────────────────────────────────────────────────────
 
 export function SessionDetails() {
@@ -404,31 +527,35 @@ export function SessionDetails() {
           </div>
         )}
 
-        {/* Line chart — full-width row so the Y-axis has room to breathe */}
-        <div className="w-full bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col">
-          <h2 className="text-sm font-semibold text-gray-700 mb-2">Vitals Over Time</h2>
+        {/* Line chart with timeline sidebar — split layout: chart 72%, sidebar 28% */}
+        <div className="w-full bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">Vitals Over Time</h2>
 
-          {/* VR stage colour legend */}
-          <div className="flex flex-wrap gap-x-5 gap-y-1 mb-3">
-            {LEGEND_STAGES.map(({ state, label }) => (
-              <div key={state} className="flex items-center gap-1.5 text-xs text-gray-500">
-                <div
-                  style={{
-                    width: 12,
-                    height: 12,
-                    backgroundColor: VR_STATE_COLORS[state],
-                    opacity: 0.85,
-                    borderRadius: 3,
-                    flexShrink: 0,
-                  }}
-                />
-                {label}
+          {/* Flex container: chart on left, timeline sidebar on right */}
+          <div className="flex gap-4">
+            {/* Chart area — 72% width */}
+            <div className="w-[72%] flex flex-col">
+              {/* VR stage colour legend */}
+              <div className="flex flex-wrap gap-x-5 gap-y-1 mb-3">
+                {LEGEND_STAGES.map(({ state, label }) => (
+                  <div key={state} className="flex items-center gap-1.5 text-xs text-gray-500">
+                    <div
+                      style={{
+                        width: 12,
+                        height: 12,
+                        backgroundColor: VR_STATE_COLORS[state],
+                        opacity: 0.85,
+                        borderRadius: 3,
+                        flexShrink: 0,
+                      }}
+                    />
+                    {label}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          {chartData.length > 0 ? (
-            <>
+              {chartData.length > 0 ? (
+                <>
               <ResponsiveContainer width="100%" height={500}>
                 <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 40 }}>
 
@@ -660,6 +787,13 @@ export function SessionDetails() {
               No time-series data available
             </div>
           )}
+            </div>
+
+            {/* Sidebar area — 28% width */}
+            <div className="w-[28%]">
+              <SessionEventTimeline sessionAlerts={sessionAlerts} chartData={chartData} />
+            </div>
+          </div>
         </div>
 
         {/* Pie chart — stress range distribution, placed below the line chart */}
