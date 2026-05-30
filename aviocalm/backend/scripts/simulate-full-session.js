@@ -26,12 +26,19 @@ const VITALS_INTERVAL_MS  = 1000;  // One vitals update per second
 /**
  * Stage definitions. Each stage fires at triggerMs after simulation start.
  * difficulty: null means no difficulty change is emitted for that stage.
+ *
+ * Alert-generation design:
+ *   T=0–11s   Calm boarding — Rule Engine collects the 10-second baseline (HR≈72, Stress≈25).
+ *   T=12–47s  Hard TakeOff danger phase — HR spikes to 145 BPM, Stress to 85, SpO2 drops to
+ *             88%. This breaches all 3 rule-engine channels simultaneously for ≈36 seconds,
+ *             which exceeds the medical_norms duration_threshold of 30 s and guarantees that
+ *             Safety, Statistical and Panic alerts are persisted to the alerts table.
+ *   T=48–59s  Recovery — metrics return to safe range, closing all open breaches.
  */
 const STAGES = [
-    { triggerMs: 0,     state: 'BoardingState', difficulty: 'Easy',   targetHr: 75,  targetStress: 30, spo2Base: 98 },
-    { triggerMs: 15000, state: 'TakeOffState',  difficulty: 'Medium', targetHr: 110, targetStress: 65, spo2Base: 96 },
-    { triggerMs: 30000, state: 'InFlightState', difficulty: null,     targetHr: 85,  targetStress: 40, spo2Base: 97 },
-    { triggerMs: 45000, state: 'LandingState',  difficulty: 'Hard',   targetHr: 95,  targetStress: 50, spo2Base: 97 },
+    { triggerMs: 0,     state: 'BoardingState', difficulty: 'Easy', targetHr: 72,  targetStress: 25, spo2Base: 98 },
+    { triggerMs: 12000, state: 'TakeOffState',  difficulty: 'Hard', targetHr: 145, targetStress: 85, spo2Base: 88 },
+    { triggerMs: 48000, state: 'InFlightState', difficulty: 'Easy', targetHr: 78,  targetStress: 30, spo2Base: 97 },
 ];
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

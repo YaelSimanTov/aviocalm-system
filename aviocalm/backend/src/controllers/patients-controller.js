@@ -774,6 +774,63 @@ const updatePatientStatus = async (req, res) => {
   }
 };
 
+// GET /api/patients/sessions/:sessionId/alerts
+// Returns session alerts together with pre-computed session-level statistics:
+//   alerts       – ordered list of all breach records for the session
+//   baseline_hr  – the real resting HR value calibrated at session start
+//                  (sourced from patient_baselines, NULL when not yet calibrated)
+//   total_points – raw biometric record count (one row per anxiety_profiles entry)
+//   window_count – number of downsampled chart windows (3 raw samples → 1 window)
+const getSessionAlerts = async (req, res) => {
+  const { sessionId } = req.params;
+  try {
+    // 1. All alerts for this session in chronological order
+    const alertsResult = await pool.query(
+      `SELECT id, patient_id, session_id, timestamp, duration_seconds,
+              alert_type, description, is_read, created_at
+       FROM alerts
+       WHERE session_id = $1
+       ORDER BY timestamp ASC`,
+      [sessionId]
+    );
+
+    // 2. Real resting baseline HR calibrated at the start of this specific session
+    const baselineResult = await pool.query(
+      `SELECT pb.avg_resting_hr AS baseline_hr
+       FROM patient_baselines pb
+       WHERE pb.session_id = $1
+       LIMIT 1`,
+      [sessionId]
+    );
+
+    // 3. Total raw biometric samples recorded during the session
+    const countResult = await pool.query(
+      `SELECT COUNT(*)::int AS total_points
+       FROM anxiety_profiles
+       WHERE session_id = $1`,
+      [sessionId]
+    );
+
+    const baseline_hr  = baselineResult.rows[0]?.baseline_hr  ?? null;
+    const total_points = countResult.rows[0]?.total_points     ?? 0;
+    // Each chart time window aggregates 3 raw anxiety_profile records
+    const window_count = Math.floor(total_points / 3);
+
+    res.json({
+      success: true,
+      data: {
+        alerts: alertsResult.rows,
+        baseline_hr,
+        total_points,
+        window_count,
+      },
+    });
+  } catch (err) {
+    console.error('[PATIENTS] Failed to fetch session alerts:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to fetch session alerts' });
+  }
+};
+
 module.exports = {
   getAllPatients,
   getPatientById,
@@ -783,5 +840,6 @@ module.exports = {
   markSessionsAsRead,
   completeSession,
   getPatientSessions,
-  getSessionAnalytics
+  getSessionAnalytics,
+  getSessionAlerts
 };

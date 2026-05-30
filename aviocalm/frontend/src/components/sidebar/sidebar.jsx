@@ -6,7 +6,6 @@ import {
   X, 
   Users, 
   UserPlus, 
-  Activity, 
   Shield, 
   Settings, 
   LogOut,
@@ -82,34 +81,6 @@ export const Sidebar = ({ onToggleCollapse }) => {
                 <div className="sidebar__item-content">
                   <UserPlus className="sidebar__item-icon" />
                   <span className="sidebar__text">Add Patient</span>
-                </div>
-              </Link>
-            </div>
-          )}
-        </div>
-
-        {/* Live Session Group */}
-        <div className="sidebar__group">
-          <button 
-            className="sidebar__group-header"
-            onClick={() => toggleGroup('liveSession')}
-          >
-            <Activity className="sidebar__group-icon" />
-            <span className="sidebar__group-text">Live Session</span>
-            {expandedGroups.liveSession ? 
-              <ChevronDown className="sidebar__group-chevron" /> : 
-              <ChevronRight className="sidebar__group-chevron" />
-            }
-          </button>
-          {expandedGroups.liveSession && (
-            <div className="sidebar__group-items">
-              <Link 
-                to="/live-monitor" 
-                className="sidebar__item"
-              >
-                <div className="sidebar__item-content">
-                  <Activity className="sidebar__item-icon" />
-                  <span className="sidebar__text">Active Monitor</span>
                 </div>
               </Link>
             </div>

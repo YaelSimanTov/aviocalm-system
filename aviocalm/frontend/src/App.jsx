@@ -8,7 +8,7 @@ import { AuthenticatedLayout } from './layouts/authenticated-layout';
 import './index.css';
 import AddPatientForm from './components/add-patient-form/add-patient-form';
 import PatientProfile from './components/patient-profile/patient-profile';
-import ActiveMonitor from './components/active-monitor/ActiveMonitor';
+import { SessionDetails } from './components/session-details/SessionDetails';
 import PatientInsights from './components/analytics/PatientInsights';
 import TeamManagement from './components/admin/team-management';
 import InventoryDashboard from './components/admin/inventory-dashboard';
@@ -142,14 +142,7 @@ function App() {
             <Route index element={<PatientList />} />
             <Route path="add" element={<AddPatientForm />} />
             <Route path=":id" element={<PatientProfile />} />
-          </Route>
-
-          <Route path="/live-monitor" element={
-            <ProtectedRoute>
-              <AuthenticatedLayout />
-            </ProtectedRoute>
-          }>
-            <Route index element={<ActiveMonitor />} />
+            <Route path=":patientId/sessions/:sessionId" element={<SessionDetails />} />
           </Route>
 
           

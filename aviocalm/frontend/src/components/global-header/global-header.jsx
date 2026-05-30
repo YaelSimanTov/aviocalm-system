@@ -86,6 +86,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/auth-context';
 import { io } from 'socket.io-client';
+import { NotificationCenter } from '../notification-center/NotificationCenter';
 import './global-header.css';
 
 // Define the connection outside the component to prevent duplicate connections on re-renders
@@ -244,6 +245,9 @@ export const GlobalHeader = ({ isSidebarCollapsed }) => {
               <span className="global-header__device-label">Watch</span>
             </div>
           </div>
+
+          {/* Notification Bell */}
+          <NotificationCenter />
 
           {/* User Info */}
           <div className="global-header__user">

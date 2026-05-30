@@ -11,6 +11,9 @@ const { insertAnxietyProfile, initializeDatabase, completeSessionWithHRV } = req
 // Device resolver for async patient-device routing (US 6.3)
 const { getPatientByDevice, createNewSession, completeSession } = require('./services/device-resolver');
 
+// Rule Engine for async alert generation (US 4.1)
+const { processVitalsSample, finalizeSession } = require('./services/ruleEngine');
+
 // Mock data simulator for centralized mock data generation
 const { initializeMockSimulator, startMockSimulation, stopMockSimulation, getMockSimulationStatus } = require('./services/mockDataSimulator');
 
@@ -21,6 +24,7 @@ const patientsRoutes = require('./routes/patients-routes');
 const analyticsRoutes = require('./routes/analytics-routes');
 const inventoryRoutes = require('./routes/inventory-routes');
 const assignmentRoutes = require('./routes/assignment-routes');
+const alertsRoutes     = require('./routes/alerts-routes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -52,6 +56,7 @@ app.use('/api/patients', patientsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/v1', inventoryRoutes);
 app.use('/api/v1/assignments', assignmentRoutes);
+app.use('/api/alerts',        alertsRoutes);
 // app.use("/api/watch", watchRoutes);
 
 // Health check endpoint
@@ -223,6 +228,16 @@ io.on('connection', async (socket) => {
 
         // Save directly to PostgreSQL database asynchronously
         await insertAnxietyProfile(syncedPatientRecord);
+
+        // Feed the sample to the Rule Engine for anomaly detection and alert generation
+        await processVitalsSample({
+            sessionId:   sessionData.sessionId,
+            patientUuid: socket.patientUuid,
+            timestamp:   syncedPatientRecord.timestamp,
+            heartRate:   sensorData.heartRate,
+            stressScore: sensorData.stressScore,
+            spo2:        sensorData.spo2,
+        });
     });
 
     // Handle emergency stop requests from frontend
@@ -256,6 +271,8 @@ io.on('connection', async (socket) => {
             const sessionData = activeSessions.get(socket.patientUuid);
             if (sessionData) {
                 try {
+                    // Flush any open rule-engine breaches before closing the session
+                    await finalizeSession(sessionData.sessionId);
                     await completeSession(sessionData.sessionId);
                     console.log(`[SESSION] Session ${sessionData.sessionId} completed on VR disconnect for patient ${socket.nationalId}`);
                 } catch (error) {

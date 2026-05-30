@@ -3,9 +3,11 @@
 -- Port: 5433, Database: aviocalm
 
 -- Drop existing tables if they exist (order matters for foreign key dependencies)
+DROP TABLE IF EXISTS alerts CASCADE;
 DROP TABLE IF EXISTS scene_stress_scores CASCADE;
 DROP TABLE IF EXISTS anxiety_profiles CASCADE;
 DROP TABLE IF EXISTS medical_norms CASCADE;
+DROP TABLE IF EXISTS patient_baselines CASCADE;
 DROP TABLE IF EXISTS appointments CASCADE;
 DROP TABLE IF EXISTS sessions CASCADE;
 DROP TABLE IF EXISTS patient_assignments CASCADE;
@@ -106,13 +108,31 @@ CREATE TABLE medical_norms (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE UNIQUE INDEX idx_medical_norms_age_group ON medical_norms (age_group);
+
 -- Patient Baselines Table (Epic 4.1)
 CREATE TABLE patient_baselines (
-    baseline_id SERIAL PRIMARY KEY,
-    patient_id UUID NOT NULL REFERENCES patients(id),
-    avg_resting_hr FLOAT NOT NULL,
-    avg_resting_stress FLOAT NOT NULL,
-    calibrated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    baseline_id       SERIAL    PRIMARY KEY,
+    patient_id        UUID      NOT NULL REFERENCES patients(id),
+    session_id        UUID      REFERENCES sessions(id) ON DELETE CASCADE,
+    avg_resting_hr    FLOAT     NOT NULL,
+    avg_resting_stress FLOAT    NOT NULL,
+    calibrated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX idx_patient_baselines_session ON patient_baselines (session_id);
+
+-- Alerts Table (Epic 4.1)
+-- Stores every resolved threshold breach with its full duration for async review.
+CREATE TABLE alerts (
+    id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id       UUID        NOT NULL REFERENCES patients(id)  ON DELETE CASCADE,
+    session_id       UUID        NOT NULL REFERENCES sessions(id)  ON DELETE CASCADE,
+    timestamp        TIMESTAMP   NOT NULL,
+    duration_seconds INTEGER     NOT NULL DEFAULT 0,
+    alert_type       VARCHAR(20) NOT NULL CHECK (alert_type IN ('Safety', 'Statistical', 'Panic')),
+    description      TEXT        NOT NULL,
+    is_read          BOOLEAN     DEFAULT false,
+    created_at       TIMESTAMP   DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Devices Table (Epic 6.1)
@@ -165,6 +185,10 @@ CREATE INDEX idx_kits_watch_device ON kits(watch_device_id);
 CREATE INDEX idx_patient_assignments_patient ON patient_assignments(patient_id);
 CREATE INDEX idx_patient_assignments_kit ON patient_assignments(kit_id);
 CREATE INDEX idx_patient_assignments_assigned_at ON patient_assignments(assigned_at);
+CREATE INDEX idx_alerts_patient    ON alerts(patient_id);
+CREATE INDEX idx_alerts_session    ON alerts(session_id);
+CREATE INDEX idx_alerts_is_read    ON alerts(is_read);
+CREATE INDEX idx_alerts_created_at ON alerts(created_at);
 
 -- Insert default owner user (admin / Admin123!)
 -- Password: Admin123! (meets requirements: 8+ chars, uppercase, lowercase, special, number)

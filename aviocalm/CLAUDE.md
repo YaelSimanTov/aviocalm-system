@@ -149,44 +149,39 @@ As a therapist, I want a weighted anxiety score that separates different VR scen
 
 ---
 
-### Epic 4: Data Analysis & Safety Engine
-**Goal:** Analyze metrics, detect statistical anomalies, and adjust treatment in the clinical environment.
+### Epic 4: Remote Monitoring & Safety Engine
+**Goal:** Asynchronous medical metrics analysis, statistical anomaly detection, and smart alert generation for remote VR sessions.
 
-**User Story 4.1: The Safety Brakes (Reactive Engine)**
-As a therapist, I want the system to automatically and immediately halt the VR if medical or physiological red lines are crossed, preventing physical harm or emotional flooding.
-**Tasks:**
-* **DB:** `MedicalNorms` Table: Age_Group, HR_Max, HR_Min, SpO2_Min, Stress_Max, Duration_Threshold (seconds), and Delta_HR_Percent.
-* **DB:** `PatientBaselines` Table: Structure to save baseline data (average HR/stress) sampled during the first 3 minutes of calibration.
-* **BE (Rule Engine):** Implement a decision engine checking three channels per sample:
-  1. Absolute Safety Channel: Stop if SpO2 < SpO2_Min OR HR > HR_Max for Duration_Threshold.
-  2. Relative Statistical Channel: Stop if HR crosses the baseline by Delta_HR_Percent OR crosses a personal statistical threshold (e.g., Z-Score) for the Duration.
-  3. Combined Panic Channel: Stop if Stress Score > Stress_Max PLUS a consistent rise in HR.
-* **BE:** `EmergencyStop` Signal: Endpoint to send a TERMINATE command via WebSocket.
-* **Data Analysis:** Anomaly Filtering: Implement noise filtering (e.g., Moving Average) to ensure stops aren't triggered by abrupt watch movements.
-* **FE:** Manual Override: A prominent red "Stop Simulation" button in the Header for manual therapist intervention.
-* **FE:** Display the personal baseline vs. current metrics on the Dashboard for visual context during an emergency stop.
-* **UX (UI Location & Navigation):** The Panic State flashing and Manual Override button will be located in the Global Header. The Baseline vs. current metrics display will be located in the 🥽 Live Session -> Active Monitor page.
+### User Story 4.1: Smart Alerts & Clinical Annotations
+**As a therapist,** I want the system to automatically analyze patient metrics during their at-home sessions, and generate centralized alerts in the interface (and annotations on the graph) if critical thresholds are crossed, **so that** I can efficiently review the critical moments in the sessions without watching them in real-time.
 
-**User Story 4.2: The Proactive Radar (Predictive Engine)**
-As a therapist, I want early warnings regarding rising stress trends so I can prepare to intervene or pause the session before the patient collapses.
-**Tasks:**
-* **Data Analysis (Trend Forecasting):**
-  * Statistical Trend & Slope Analysis: Function calculating the rate of change (derivative/slope) of HR and stress over the last 15 seconds.
-  * Prediction Model: Logic determining if the patient is "on track" to cross HR_Max shortly, based on the slope.
-* **BE:** Warning Dispatcher: Service listening to trend model results and sending a "Warning" signal to the UI if a consistent rise is detected.
-* **FE:** Level 1 Alert (Warning): Yellow indication in the Header: "Abnormal rise in stress metrics - monitoring recommended".
-* **FE:** Trend Indicator arrow next to the metric showing stable, rising, or falling.
-* **UX (UI Location & Navigation):** The Level 1 Alert will pop up in the Global Header. The Trend Indicator arrow will be displayed next to the metrics on the 🥽 Live Session -> Active Monitor page.
+#### Tasks / Acceptance Criteria:
 
-**User Story 4.3: Progression Heuristics**
-As a therapist, I want a data-driven recommendation on whether the patient is ready for higher exposure.
-**Tasks:**
-* **BE Logic (Weighted Scoring):** Algorithm analyzing the Recovery Rate (return to Baseline) at the end of each stage.
-* **BE Logic (Patient Profiling):** Statistical classification mapping the patient to a behavioral profile (e.g., "fast responder").
-* **FE UI (Recommendation):** Display a "Recommendation Card" at the end of a VR room with traffic-light colors (Green: Proceed / Yellow: Repeat stage).
-* **FE (Feedback Loop):** Add "Agree/Disagree" buttons next to the recommendation to collect professional feedback (Human in the loop).
-* **DB:** Save decisions (recommendation vs. actual action) in a `TreatmentDecisions` table.
-* **UX (UI Location & Navigation):** The Recommendation card and feedback buttons (Agree/Disagree) will be located in the 🥽 Live Session -> AI Insights sub-page.
+**✅ Phase 1 COMPLETE — DB & Backend Rule Engine**
+
+**1. DB - Data & Rules Infrastructure:** ✅
+* **`medical_norms` table:** Seeded via `003_seed_medical_norms.sql` (HR_Max=100, SpO2_Min=95, Stress_Max=75, Duration=30s, Delta=25%).
+* **`patient_baselines` table:** Extended with `session_id` FK via `002_create_alerts_table.sql`; baseline persisted after 10-sample calibration window.
+* **`alerts` table (New):** ✅ Created via `002_create_alerts_table.sql`; verified rows with `duration_seconds > 0` (Safety: 41s, Statistical: 43s).
+
+**2. BE - Rule Engine & Signal Processing:** ✅ (`backend/src/services/ruleEngine.js`)
+* **Anomaly Filtering:** 5-point Moving Average via `SignalProcessingService` per session instance.
+* **State Tracking:** Per-channel breach lifecycle tracked in `openBreaches` Map; duration calculated on resolution; alert persisted only if `duration_seconds >= duration_threshold`.
+* **Continuous Channel Checking:** All 3 channels evaluated every sample via `SafetyEngine`:
+    * **Absolute Safety Channel:** `SpO2 < SpO2_Min` or `HR > HR_Max`. ✅
+    * **Relative Statistical Channel:** HR spike above personal baseline by `Delta_HR_Percent`. ✅
+    * **Combined Panic Channel:** `Stress Score > Stress_Max` + consistent upward HR trend. ✅
+
+**3. FE - Notification Center:**
+* **Header Bell Icon:** Add a bell icon in the Header of the therapist's interface. The icon will display a red badge with the number of alerts where `is_read = false`.
+* **Notifications Dropdown:** Clicking the bell opens a dropdown list showing the latest alerts (date, time, patient name, ID).
+* **Alert Modal:** Clicking a specific alert row will mark it as read (`is_read = true`) and open a modal explaining exactly why the alert was generated, **including the duration of the event** (e.g., *"Oxygen drop to 91% detected, lasting 45 seconds"*). The modal will include a "Go to Full Session Graph" button.
+
+**4. FE - In-Chart Annotation:**
+* When the therapist views the Treatment History, the component will fetch the alerts linked to that specific `session_id`.
+* **Design Constraint:** Since the graph background is used to display VR flight phases, **DO NOT use background colors** (like `ReferenceArea`) to display alerts.
+* **Highlighting the Anomaly:** Instead, show a focused indication directly on the data line itself (e.g., changing the HR line color to red, or adding prominent Dots) along the entire time window of the alert (`timestamp` until the end of `duration_seconds`).
+* A hover **Tooltip** over the highlighted area will display the exact anomaly details and its duration.
 
 ---
 

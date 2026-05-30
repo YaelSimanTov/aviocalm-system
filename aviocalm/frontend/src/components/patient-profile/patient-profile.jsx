@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { apiRequest } from '../../utils/api';
 import { TreatmentHistory } from '../treatment-history/TreatmentHistory';
 import './patient-profile.css';
@@ -7,6 +7,7 @@ import './patient-profile.css';
 export const PatientProfile = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [patient, setPatient] = useState(null);
   const [activeTab, setActiveTab] = useState('personal');
   const [isLoading, setIsLoading] = useState(true);
@@ -31,6 +32,14 @@ export const PatientProfile = () => {
     fetchPatient();
     fetchAssignment();
   }, [id]);
+
+  // If arriving from the Notification Center, switch to the requested tab automatically.
+  // The empty dependency array ensures this fires once on mount only.
+  useEffect(() => {
+    if (location.state?.targetTab) {
+      setActiveTab(location.state.targetTab);
+    }
+  }, []);
 
   const fetchPatient = async () => {
     try {

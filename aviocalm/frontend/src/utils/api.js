@@ -110,6 +110,18 @@ export const api = {
       method: 'PUT',
     });
   },
+  // Fetch all unread alerts (with patient details) for the Notification Center
+  getUnreadAlerts: () => {
+    return apiRequest('/alerts/unread', { method: 'GET' });
+  },
+  // Mark a single alert as read and decrement the unread badge
+  markAlertRead: (alertId) => {
+    return apiRequest(`/alerts/${alertId}/read`, { method: 'PATCH' });
+  },
+  // Fetch all alerts (read + unread) for a specific session — used by in-chart annotations
+  getSessionAlerts: (sessionId) => {
+    return apiRequest(`/patients/sessions/${sessionId}/alerts`, { method: 'GET' });
+  },
 };
 
 export default api;

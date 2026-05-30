@@ -10,7 +10,8 @@ const {
   markSessionsAsRead,
   completeSession,
   getPatientSessions,
-  getSessionAnalytics
+  getSessionAnalytics,
+  getSessionAlerts
 } = require('../controllers/patients-controller');
 
 // All patient routes require authentication
@@ -42,5 +43,8 @@ router.get('/:patientId/sessions', getPatientSessions);
 
 // GET /api/sessions/:sessionId/analytics - Get session analytics with downsampling
 router.get('/sessions/:sessionId/analytics', getSessionAnalytics);
+
+// GET /api/sessions/:sessionId/alerts - Get all alerts for a specific session
+router.get('/sessions/:sessionId/alerts', getSessionAlerts);
 
 module.exports = router;
