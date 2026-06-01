@@ -17,8 +17,8 @@
  */
 
 const pool                        = require('../config/db');
-const { SignalProcessingService } = require('./signalProcessingService');
-const { SafetyEngine }            = require('./safetyEngine');
+const { SignalProcessingService } = require('./signal-processing-service');
+const { SafetyEngine }            = require('./safety-engine');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants

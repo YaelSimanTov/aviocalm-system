@@ -6,7 +6,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { getPatientInsights } = require('../services/clinicalScoringService');
+const { getPatientInsights } = require('../services/clinical-scoring-service');
 
 /**
  * GET /api/analytics/insights/:patientId

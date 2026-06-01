@@ -6,16 +6,16 @@ const { Server } = require('socket.io');
 require('dotenv').config();
 
 // Database manager for saving IoT/VR data
-const { insertAnxietyProfile, initializeDatabase, completeSessionWithHRV } = require('./db/dbManager');
+const { insertAnxietyProfile, initializeDatabase, completeSessionWithHRV } = require('./db/db-manager');
 
 // Device resolver for async patient-device routing (US 6.3)
 const { getPatientByDevice, createNewSession, completeSession } = require('./services/device-resolver');
 
 // Rule Engine for async alert generation (US 4.1)
-const { processVitalsSample, finalizeSession } = require('./services/ruleEngine');
+const { processVitalsSample, finalizeSession } = require('./services/rule-engine');
 
 // Mock data simulator for centralized mock data generation
-const { initializeMockSimulator, startMockSimulation, stopMockSimulation, getMockSimulationStatus } = require('./services/mockDataSimulator');
+const { initializeMockSimulator, startMockSimulation, stopMockSimulation, getMockSimulationStatus } = require('./services/mock-data-simulator');
 
 // Route imports
 const authRoutes = require('./routes/auth-routes');

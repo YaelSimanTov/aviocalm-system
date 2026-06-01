@@ -5,12 +5,12 @@
 
 const fs = require('fs');
 const path = require('path');
-const pool = require('../src/config/db');
+const pool = require('../config/db');
 
 async function applyEpic6Tables() {
   try {
     console.log('Reading add-epic6-tables.sql file...');
-    const schemaPath = path.join(__dirname, '../src/db/add-epic6-tables.sql');
+    const schemaPath = path.join(__dirname, '../db/add-epic6-tables.sql');
     const schemaSql = fs.readFileSync(schemaPath, 'utf8');
 
     console.log('Applying Epic 6 tables to database...');

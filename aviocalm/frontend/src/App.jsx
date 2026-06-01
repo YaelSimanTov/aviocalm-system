@@ -8,8 +8,7 @@ import { AuthenticatedLayout } from './layouts/authenticated-layout';
 import './index.css';
 import AddPatientForm from './components/add-patient-form/add-patient-form';
 import PatientProfile from './components/patient-profile/patient-profile';
-import { SessionDetails } from './components/session-details/SessionDetails';
-import PatientInsights from './components/analytics/PatientInsights';
+import { SessionDetails } from './components/session-details/session-details';
 import TeamManagement from './components/admin/team-management';
 import InventoryDashboard from './components/admin/inventory-dashboard';
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiRequest, api } from '../../utils/api';
-import './TreatmentHistory.css';
+import './treatment-history.css';
 
 // Treatment History Component — renders the sessions table only.
 // Clicking "View Record" navigates to the dedicated session dashboard page.

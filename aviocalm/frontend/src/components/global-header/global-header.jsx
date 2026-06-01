@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../../context/auth-context';
-import { NotificationCenter } from '../notification-center/NotificationCenter';
+import { NotificationCenter } from '../notification-center/notification-center';
 import './global-header.css';
 
 export const GlobalHeader = ({ isSidebarCollapsed }) => {

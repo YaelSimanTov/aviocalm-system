@@ -4,7 +4,7 @@
  * Implements difficulty-based scoring algorithms for clinical insights
  */
 
-const { insertAnxietyProfile } = require('../db/dbManager');
+const { insertAnxietyProfile } = require('../db/db-manager');
 
 class ClinicalScoringService {
   constructor() {

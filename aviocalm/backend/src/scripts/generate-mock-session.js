@@ -18,8 +18,8 @@
  */
 
 // Load .env before requiring the pool so DB credentials are in process.env
-require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
-const pool = require('../config/db');
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') });
+const pool = require('../../config/db');
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

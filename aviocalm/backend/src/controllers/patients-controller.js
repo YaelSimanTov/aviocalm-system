@@ -1,5 +1,5 @@
 const pool = require('../config/db');
-const { completeSessionWithHRV } = require('../db/dbManager');
+const { completeSessionWithHRV } = require('../db/db-manager');
 
 // Get all patients (with role-based filtering and search)
 const getAllPatients = async (req, res) => {

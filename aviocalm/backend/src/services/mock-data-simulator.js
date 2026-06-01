@@ -5,8 +5,8 @@
  */
 
 const { v4: uuidv4 } = require('uuid');
-const { processSceneCompletion } = require('./clinicalScoringService');
-const { createSession, updateSession, completeSessionWithHRV } = require('../db/dbManager');
+const { processSceneCompletion } = require('./clinical-scoring-service');
+const { createSession, updateSession, completeSessionWithHRV } = require('../db/db-manager');
 
 class MockDataSimulator {
   constructor(io) {

@@ -1,6 +1,6 @@
 // src/db/dbManager.js
 const { Pool } = require('pg');
-const { calculateRMSSD } = require('../services/hrvCalculator');
+const { calculateRMSSD } = require('../services/hrv-calculator');
 
 const pool = new Pool({
   user: 'postgres',
@@ -234,16 +234,6 @@ async function completeSessionWithHRV(sessionId, completionData = {}) {
     }
 }
 
-/**
- * Calculates HRV RMSSD from heart rate intervals (Legacy function - kept for compatibility)
- * @param {Array} heartRateValues - Array of heart rate measurements
- * @deprecated Use calculateRMSSD from hrvCalculator service instead
- */
-function calculateHRVRmssd(heartRateValues) {
-    console.warn('[DB] calculateHRVRmssd is deprecated. Use calculateRMSSD from hrvCalculator service instead.');
-    return calculateRMSSD(heartRateValues);
-}
-
 module.exports = {
     insertAnxietyProfile,
     initializeDatabase,
@@ -251,6 +241,5 @@ module.exports = {
     updateSession,
     getPatientTreatmentHistory,
     calculateSessionHRV,
-    completeSessionWithHRV,
-    calculateHRVRmssd
+    completeSessionWithHRV
 };

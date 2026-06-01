@@ -21,9 +21,9 @@ import { apiRequest, api } from '../../utils/api';
 // ─── Chart color palette ──────────────────────────────────────────────────────
 
 const COLORS = {
-  RELAXED:  '#10b981',
-  MODERATE: '#f59e0b',
-  PANIC:    '#ef4444',
+  RELAXED:  '#a3e635',
+  MODERATE: '#d946ef',
+  PANIC:    '#9333ea',
 };
 
 // VR flight-phase background fills — reserved exclusively for ReferenceArea blocks

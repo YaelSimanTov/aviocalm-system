@@ -18,7 +18,7 @@ const pool = new Pool({
 
 class DatabaseInitializer {
   constructor() {
-    this.schemaPath = path.join(__dirname, 'schema.sql');
+    this.schemaPath = path.join(__dirname, '../db/schema.sql');
   }
 
   /**
