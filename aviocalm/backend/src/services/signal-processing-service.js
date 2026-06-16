@@ -150,39 +150,43 @@ class SignalProcessingService {
     return value < lowerBound || value > upperBound;
   }
 
-  /**
+ /**
    * Process raw metrics with outlier detection and smoothing
    * @param {Object} rawMetrics - Raw biometric data
    * @returns {Object} Processed and smoothed metrics
    */
   processRawMetrics(rawMetrics) {
-    // Add raw metrics to windows
+    // 1. Check for outliers BEFORE adding to the window
+    const isHrOutlier = this.isOutlier(this.heartRateWindow, rawMetrics.heartRate);
+    const isStressOutlier = this.isOutlier(this.stressScoreWindow, rawMetrics.stressScore);
+    const isSpo2Outlier = this.isOutlier(this.spo2Window, rawMetrics.spo2);
+
+    // 2. If it's an outlier, replace it with the current smoothed average
+    // to prevent the sudden spike from corrupting the window
+    if (isHrOutlier && this.heartRateWindow.length >= 4) {
+      rawMetrics.heartRate = this.getSmoothedHeartRate();
+    }
+    if (isStressOutlier && this.stressScoreWindow.length >= 4) {
+      rawMetrics.stressScore = this.getSmoothedStressScore();
+    }
+    if (isSpo2Outlier && this.spo2Window.length >= 4) {
+      rawMetrics.spo2 = this.getSmoothedSpO2();
+    }
+
+    // 3. Now add the clean/corrected metrics to the sliding window
     this.addRawMetrics(rawMetrics);
     
-    // Check for outliers and use previous smoothed value if outlier detected
-    const smoothedHeartRate = this.isOutlier(this.heartRateWindow.slice(0, -1), rawMetrics.heartRate) 
-      ? this.getSmoothedHeartRate() 
-      : this.getSmoothedHeartRate();
-    
-    const smoothedStressScore = this.isOutlier(this.stressScoreWindow.slice(0, -1), rawMetrics.stressScore) 
-      ? this.getSmoothedStressScore() 
-      : this.getSmoothedStressScore();
-    
-    const smoothedSpO2 = this.isOutlier(this.spo2Window.slice(0, -1), rawMetrics.spo2) 
-      ? this.getSmoothedSpO2() 
-      : this.getSmoothedSpO2();
-    
+    // 4. Return the new smoothed values
     return {
-      heartRate: smoothedHeartRate,
-      stressScore: smoothedStressScore,
-      spo2: smoothedSpO2,
+      heartRate: this.getSmoothedHeartRate(),
+      stressScore: this.getSmoothedStressScore(),
+      spo2: this.getSmoothedSpO2(),
       timestamp: rawMetrics.timestamp,
       sessionId: rawMetrics.sessionId,
       vrState: rawMetrics.vrState,
       difficulty: rawMetrics.difficulty
     };
   }
-
   /**
    * Reset all sliding windows (useful for new sessions)
    */
