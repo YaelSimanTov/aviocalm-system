@@ -11,6 +11,7 @@ import PatientProfile from './components/patient-profile/patient-profile';
 import { SessionDetails } from './components/session-details/session-details';
 import TeamManagement from './components/admin/team-management';
 import InventoryDashboard from './components/admin/inventory-dashboard';
+import CreateTherapistPage from './pages/create-therapist-page';
 
 // Placeholder components for routes that don't exist yet
 const GlobalStats = () => <div className="p-8"><h1 className="text-2xl font-bold">Global Stats</h1><p>Coming soon...</p></div>;
@@ -152,7 +153,13 @@ function App() {
           }>
             <Route index element={<TeamManagement />} />
           </Route>
-
+          <Route path="/admin/create-therapist" element={
+            <ProtectedRoute requiredRole="Owner">
+              <AuthenticatedLayout />
+            </ProtectedRoute>
+          }>
+           <Route index element={<CreateTherapistPage />} />
+            </Route>
           <Route path="/admin/hardware-inventory" element={
             <ProtectedRoute requiredRole="Owner">
               <AuthenticatedLayout />
