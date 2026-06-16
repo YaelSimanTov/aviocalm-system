@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth-middleware');
-const { 
-  getAllPatients, 
-  getPatientById, 
+const {
+  getAllPatients,
+  getPatientById,
   createPatient,
   updatePatient,
   updatePatientStatus,
@@ -11,7 +11,9 @@ const {
   completeSession,
   getPatientSessions,
   getSessionAnalytics,
-  getSessionAlerts
+  getSessionAlerts,
+  getPatientClinicalNotes,
+  createClinicalNote
 } = require('../controllers/patients-controller');
 
 // All patient routes require authentication
@@ -46,5 +48,11 @@ router.get('/sessions/:sessionId/analytics', getSessionAnalytics);
 
 // GET /api/sessions/:sessionId/alerts - Get all alerts for a specific session
 router.get('/sessions/:sessionId/alerts', getSessionAlerts);
+
+// GET /api/patients/:id/notes - Get all clinical notes for a specific patient
+router.get('/:id/notes', getPatientClinicalNotes);
+
+// POST /api/patients/:id/notes - Create a new clinical note for a specific patient
+router.post('/:id/notes', createClinicalNote);
 
 module.exports = router;

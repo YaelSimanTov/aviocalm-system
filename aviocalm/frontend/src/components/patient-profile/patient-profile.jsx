@@ -26,6 +26,10 @@ export const PatientProfile = () => {
   const [selectedKitId, setSelectedKitId] = useState('');
   const [isReleasing, setIsReleasing] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
+  const [clinicalNotes, setClinicalNotes] = useState([]);
+  const [newNoteContent, setNewNoteContent] = useState('');
+  const [isSavingNote, setIsSavingNote] = useState(false);
+  const [isLoadingNotes, setIsLoadingNotes] = useState(false);
 
   // Fetch patient data on component mount
   useEffect(() => {
@@ -40,6 +44,13 @@ export const PatientProfile = () => {
       setActiveTab(location.state.targetTab);
     }
   }, []);
+
+  // Fetch clinical notes when clinical-notes tab is activated
+  useEffect(() => {
+    if (activeTab === 'clinical-notes') {
+      fetchClinicalNotes();
+    }
+  }, [activeTab, id]);
 
   const fetchPatient = async () => {
     try {
@@ -309,6 +320,66 @@ export const PatientProfile = () => {
     fetchAvailableKits();
   };
 
+  // Fetch clinical notes for the patient
+  const fetchClinicalNotes = async () => {
+    try {
+      setIsLoadingNotes(true);
+      const result = await apiRequest(`/patients/${id}/notes`);
+      if (result.success) {
+        setClinicalNotes(result.data);
+      } else {
+        console.error('Failed to fetch clinical notes:', result.error);
+      }
+    } catch (error) {
+      console.error('Error fetching clinical notes:', error);
+    } finally {
+      setIsLoadingNotes(false);
+    }
+  };
+
+  // Save a new clinical note
+  const handleSaveNote = async () => {
+    if (!newNoteContent.trim()) {
+      return;
+    }
+
+    try {
+      setIsSavingNote(true);
+      const result = await apiRequest(`/patients/${id}/notes`, {
+        method: 'POST',
+        body: JSON.stringify({ note_content: newNoteContent })
+      });
+
+      if (result.success) {
+        // Clear the textarea
+        setNewNoteContent('');
+        // Add the new note to the top of the list
+        setClinicalNotes(prevNotes => [result.data, ...prevNotes]);
+        setSuccessMessage('Clinical note saved successfully!');
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        setError(result.error || 'Failed to save clinical note');
+      }
+    } catch (error) {
+      setError('Network error. Please try again.');
+    } finally {
+      setIsSavingNote(false);
+    }
+  };
+
+  // Format date for display
+  const formatNoteDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="patient-profile">
@@ -424,10 +495,10 @@ export const PatientProfile = () => {
             Treatment History
           </button>
           <button
-            className={`patient-profile__tab-button ${activeTab === 'progression' ? 'active' : ''}`}
-            onClick={() => handleTabChange('progression')}
+            className={`patient-profile__tab-button ${activeTab === 'clinical-notes' ? 'active' : ''}`}
+            onClick={() => handleTabChange('clinical-notes')}
           >
-            🚀 Progression
+            Therapist Notes
           </button>
         </div>
 
@@ -725,19 +796,69 @@ export const PatientProfile = () => {
             </div>
           )}
 
-          {activeTab === 'progression' && (
-            <div className="patient-profile__progression-tab">
+          {activeTab === 'clinical-notes' && (
+            <div className="patient-profile__clinical-notes-tab">
               <div className="patient-profile__tab-header">
-                <h3 className="patient-profile__tab-title">🚀 Progression Analysis</h3>
-                <button className="patient-profile__pdf-btn">
-                  📄 Download PDF Report
+                <h3 className="patient-profile__tab-title">📝 Therapist Notes</h3>
+              </div>
+
+              {/* Input Section */}
+              <div className="patient-profile__notes-input-section">
+                <textarea
+                  className="patient-profile__notes-textarea"
+                  placeholder="Write a session summary, clinical observation, or patient feedback..."
+                  value={newNoteContent}
+                  onChange={(e) => setNewNoteContent(e.target.value)}
+                  rows="4"
+                />
+                <button
+                  onClick={handleSaveNote}
+                  disabled={isSavingNote || !newNoteContent.trim()}
+                  className="patient-profile__save-note-btn"
+                >
+                  {isSavingNote ? (
+                    <>
+                      <div className="patient-profile__btn-spinner">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Saving...
+                      </div>
+                    </>
+                  ) : (
+                    'Save Note'
+                  )}
                 </button>
               </div>
-              <div className="patient-profile__empty-state">
-                <h3 className="patient-profile__empty-title">Progression data coming soon</h3>
-                <p className="patient-profile__empty-message">
-                  Longitudinal trend analysis and performance comparison across sessions will appear here once multiple treatment sessions are completed.
-                </p>
+
+              {/* History Feed */}
+              <div className="patient-profile__notes-history">
+                <h4 className="patient-profile__notes-history-title">Previous Notes</h4>
+                {isLoadingNotes ? (
+                  <div className="patient-profile__notes-loading">
+                    Loading therapist notes...
+                  </div>
+                ) : clinicalNotes.length === 0 ? (
+                  <div className="patient-profile__notes-empty">
+                    <p className="patient-profile__notes-empty-message">
+                      No therapist notes yet. Write your first note above.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="patient-profile__notes-list">
+                    {clinicalNotes.map((note) => (
+                      <div key={note.id} className="patient-profile__note-card">
+                        <div className="patient-profile__note-content">
+                          {note.note_content}
+                        </div>
+                        <div className="patient-profile__note-date">
+                          {formatNoteDate(note.created_at)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

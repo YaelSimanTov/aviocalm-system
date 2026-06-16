@@ -6,6 +6,7 @@
 DROP TABLE IF EXISTS alerts CASCADE;
 DROP TABLE IF EXISTS scene_stress_scores CASCADE;
 DROP TABLE IF EXISTS anxiety_profiles CASCADE;
+DROP TABLE IF EXISTS clinical_notes CASCADE;
 DROP TABLE IF EXISTS medical_norms CASCADE;
 DROP TABLE IF EXISTS patient_baselines CASCADE;
 DROP TABLE IF EXISTS appointments CASCADE;
@@ -77,6 +78,14 @@ CREATE TABLE anxiety_profiles (
     spo2 INTEGER,
     therapist_action VARCHAR(50) DEFAULT 'None',
     CONSTRAINT fk_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+);
+
+-- Clinical Notes Table (Epic 3.3)
+CREATE TABLE clinical_notes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+    note_content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Scene Stress Scores Table (Epic 3.1)
@@ -175,6 +184,8 @@ CREATE INDEX idx_sessions_status ON sessions(status);
 CREATE INDEX idx_sessions_started_at ON sessions(started_at);
 CREATE INDEX idx_anxiety_profiles_session ON anxiety_profiles(session_id);
 CREATE INDEX idx_anxiety_profiles_timestamp ON anxiety_profiles(recorded_at);
+CREATE INDEX idx_clinical_notes_patient ON clinical_notes(patient_id);
+CREATE INDEX idx_clinical_notes_created_at ON clinical_notes(created_at DESC);
 CREATE INDEX idx_scene_stress_scores_patient ON scene_stress_scores(patient_id);
 CREATE INDEX idx_scene_stress_scores_session ON scene_stress_scores(session_id);
 CREATE INDEX idx_scene_stress_scores_vrstate ON scene_stress_scores(vr_state);

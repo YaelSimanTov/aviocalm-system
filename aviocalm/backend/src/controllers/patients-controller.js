@@ -831,6 +831,113 @@ const getSessionAlerts = async (req, res) => {
   }
 };
 
+// GET /api/patients/:id/notes - Get all clinical notes for a specific patient
+const getPatientClinicalNotes = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role, userId } = req.user;
+
+    // Verify patient exists and user has access
+    let checkQuery, checkParams;
+    
+    if (role === 'Owner') {
+      checkQuery = 'SELECT id FROM patients WHERE id = $1';
+      checkParams = [id];
+    } else {
+      checkQuery = 'SELECT id FROM patients WHERE id = $1 AND therapist_id = $2';
+      checkParams = [id, userId];
+    }
+
+    const patientCheck = await pool.query(checkQuery, checkParams);
+
+    if (patientCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient not found or access denied'
+      });
+    }
+
+    // Fetch all clinical notes for the patient, ordered by created_at DESC (newest first)
+    const notesQuery = `
+      SELECT id, patient_id, note_content, created_at
+      FROM clinical_notes
+      WHERE patient_id = $1
+      ORDER BY created_at DESC
+    `;
+
+    const result = await pool.query(notesQuery, [id]);
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching clinical notes:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+// POST /api/patients/:id/notes - Create a new clinical note for a specific patient
+const createClinicalNote = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { note_content } = req.body;
+    const { role, userId } = req.user;
+
+    // Verify patient exists and user has access
+    let checkQuery, checkParams;
+    
+    if (role === 'Owner') {
+      checkQuery = 'SELECT id FROM patients WHERE id = $1';
+      checkParams = [id];
+    } else {
+      checkQuery = 'SELECT id FROM patients WHERE id = $1 AND therapist_id = $2';
+      checkParams = [id, userId];
+    }
+
+    const patientCheck = await pool.query(checkQuery, checkParams);
+
+    if (patientCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Patient not found or access denied'
+      });
+    }
+
+    // Validate note content
+    if (!note_content || note_content.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        error: 'Note content is required'
+      });
+    }
+
+    // Insert the new clinical note
+    const insertQuery = `
+      INSERT INTO clinical_notes (patient_id, note_content)
+      VALUES ($1, $2)
+      RETURNING id, patient_id, note_content, created_at
+    `;
+
+    const result = await pool.query(insertQuery, [id, note_content.trim()]);
+
+    res.status(201).json({
+      success: true,
+      data: result.rows[0],
+      message: 'Clinical note created successfully'
+    });
+  } catch (error) {
+    console.error('Error creating clinical note:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
 module.exports = {
   getAllPatients,
   getPatientById,
@@ -841,5 +948,7 @@ module.exports = {
   completeSession,
   getPatientSessions,
   getSessionAnalytics,
-  getSessionAlerts
+  getSessionAlerts,
+  getPatientClinicalNotes,
+  createClinicalNote
 };
