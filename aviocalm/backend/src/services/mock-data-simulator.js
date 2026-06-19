@@ -67,7 +67,7 @@ class MockDataSimulator {
         port: 5433,
       });
       
-      const result = await pool.query('SELECT id, national_id FROM patients WHERE national_id = $1 LIMIT 1', ['123456789']);
+      const result = await pool.query('SELECT id, national_id FROM patients WHERE national_id = $1 LIMIT 1', ['012345678']);
       
       if (result.rows.length === 0) {
         throw new Error('No test patient found. Please run the seeder first.');

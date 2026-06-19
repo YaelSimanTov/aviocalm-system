@@ -80,7 +80,7 @@ CREATE TABLE anxiety_profiles (
     CONSTRAINT fk_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
 );
 
--- Clinical Notes Table (Epic 3.3)
+-- Clinical Notes Table (Epic 5.6)
 CREATE TABLE clinical_notes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,

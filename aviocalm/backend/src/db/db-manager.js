@@ -1,6 +1,6 @@
 // src/db/dbManager.js
 const { Pool } = require('pg');
-const { calculateRMSSD } = require('../services/hrv-calculator');
+const { calculateRMSSD } = require('../services/hrv-calculator'); // Ensure this path is correct for your project
 
 const pool = new Pool({
   user: 'postgres',
@@ -9,39 +9,6 @@ const pool = new Pool({
   password: 'postgres',
   port: 5433,
 });
-
-/**
- * Inserts a synchronized patient record from the VR and Watch into the database.
- * Updated to work with new sessions table structure
- * @param {Object} record - The synchronized data object
- */
-async function insertAnxietyProfile(record) {
-    const query = `
-        INSERT INTO "anxiety_profiles" 
-        ("patient_id", "session_id", "recorded_at", "vr_state", "difficulty", "heart_rate", "stress_score", "spo2", "therapist_action")
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    `;
-    
-    // Mapping the object fields to the query parameters
-    const values = [
-        record.patientId || 'unknown', // Use provided patientId or default to 'unknown'
-        record.sessionId,
-        record.timestamp,
-        record.vrState,
-        record.difficulty,
-        record.vitals.heartRate,
-        record.vitals.stressScore,
-        record.vitals.spo2,
-        record.therapistAction || 'None'
-    ];
-
-    try {
-        await pool.query(query, values);
-        console.log(`[DB] Successfully saved profile at ${record.timestamp}`);
-    } catch (error) {
-        console.error('[DB ERROR] Failed to insert anxiety profile:', error);
-    }
-}
 
 /**
  * Initialize database with required mock data
@@ -72,8 +39,112 @@ async function initializeDatabase() {
 }
 
 /**
+ * Inserts a synchronized patient record from the VR and Watch into the database.
+ * @param {Object} record - The synchronized data object
+ */
+async function insertAnxietyProfile(record) {
+    const query = `
+        INSERT INTO "anxiety_profiles" 
+        ("patient_id", "session_id", "recorded_at", "vr_state", "difficulty", "heart_rate", "stress_score", "spo2", "therapist_action")
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `;
+    
+    const values = [
+        record.patientId || 'unknown',
+        record.sessionId,
+        record.timestamp,
+        record.vrState,
+        record.difficulty,
+        record.vitals.heartRate,
+        record.vitals.stressScore,
+        record.vitals.spo2,
+        record.therapistAction || 'None'
+    ];
+
+    try {
+        await pool.query(query, values);
+    } catch (error) {
+        console.error('[DB ERROR] Failed to insert anxiety profile:', error);
+    }
+}
+
+// ==========================================
+// DEVICE ROUTING & BASELINE (FROM SIMULATION)
+// ==========================================
+
+/**
+ * Resolves the active patient ID based on VR Headset OR Watch device_id
+ */
+const getActivePatientByDevice = async (deviceId) => {
+    const query = `
+        SELECT pa.patient_id 
+        FROM patient_assignments pa
+        JOIN kits k ON pa.kit_id = k.kit_id
+        WHERE (k.vr_device_id = $1 OR k.watch_device_id = $1)
+        AND pa.unassigned_at IS NULL
+        LIMIT 1;
+    `;
+    
+    try {
+        const result = await pool.query(query, [deviceId]);
+        if (result.rows.length > 0) {
+            return result.rows[0].patient_id;
+        }
+        return null; 
+    } catch (error) {
+        console.error(`[DB ERROR] Failed to resolve patient by device: ${error.message}`);
+        throw error;
+    }
+};
+
+/**
+ * Fetches the historical resting HR for a specific patient
+ */
+const getPatientBaseline = async (patientId) => {
+    const query = `
+        SELECT avg_resting_hr 
+        FROM patient_baselines 
+        WHERE patient_id = $1 
+        ORDER BY calibrated_at DESC 
+        LIMIT 1;
+    `;
+    try {
+        const result = await pool.query(query, [patientId]);
+        return result.rows.length > 0 ? result.rows[0].avg_resting_hr : 0;
+    } catch(err) {
+        console.error(`[DB ERROR] Failed to fetch baseline: ${err.message}`);
+        return 0;
+    }
+};
+
+/**
+ * Saves or updates the newly calibrated baseline
+ */
+const savePatientBaseline = async (patientId, sessionId, avgHr, avgStress = 0) => {
+    const query = `
+        INSERT INTO patient_baselines (patient_id, session_id, avg_resting_hr, avg_resting_stress, calibrated_at)
+        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+        ON CONFLICT (session_id) 
+        DO UPDATE SET 
+            avg_resting_hr = EXCLUDED.avg_resting_hr,
+            avg_resting_stress = EXCLUDED.avg_resting_stress,
+            calibrated_at = CURRENT_TIMESTAMP;
+    `;
+    try {
+        await pool.query(query, [patientId, sessionId, avgHr, avgStress]);
+        console.log(`[DB SUCCESS] Baseline saved successfully for patient: ${patientId}`);
+    } catch (error) {
+        console.error(`[DB ERROR] Failed to save patient baseline: ${error.message}`);
+        throw error; 
+    }
+};
+
+// ==========================================
+// SESSION LIFECYCLE & HRV (COMBINED)
+// ==========================================
+
+/**
  * Creates a new treatment session for a patient
- * @param {Object} sessionData - Session information
  */
 async function createSession(sessionData) {
     const query = `
@@ -99,9 +170,43 @@ async function createSession(sessionData) {
 }
 
 /**
+ * Function to dynamically create a new session when the headset is put on (Simplified Signature)
+ * Often used by WebSockets where only patientId is available instantly.
+ */
+const createNewSession = async (patientId) => {
+    const query = `
+        INSERT INTO sessions (patient_id, started_at, status)
+        VALUES ($1, CURRENT_TIMESTAMP, 'In Progress')
+        RETURNING id;
+    `;
+    try {
+        const result = await pool.query(query, [patientId]);
+        if (result.rows.length > 0) {
+            const newSessionId = result.rows[0].id;
+            console.log(`[DB SUCCESS] Created new session in DB with ID: ${newSessionId}`);
+            return newSessionId;
+        }
+        throw new Error("No rows returned from session insertion");
+    } catch (error) {
+        console.error(`[DB ERROR] Failed to create new session: ${error.message}`);
+        throw error;
+    }
+};
+
+/**
+ * Function to close the session when the headset is taken off (Basic close without HRV)
+ */
+const endSession = async (sessionId) => {
+    const query = `
+        UPDATE sessions
+        SET ended_at = CURRENT_TIMESTAMP, status = 'Completed'
+        WHERE id = $1;
+    `;
+    await pool.query(query, [sessionId]);
+};
+
+/**
  * Updates a session with completion data and HRV metrics
- * @param {String} sessionId - Session ID
- * @param {Object} completionData - Session completion information
  */
 async function updateSession(sessionId, completionData) {
     const query = `
@@ -111,6 +216,7 @@ async function updateSession(sessionId, completionData) {
     `;
     
     const values = [
+        sessionId,
         completionData.endedAt || new Date().toISOString(),
         completionData.durationMinutes,
         completionData.overallHrvRmssd || null,
@@ -127,8 +233,60 @@ async function updateSession(sessionId, completionData) {
 }
 
 /**
+ * Fetches heart rate data for a session and calculates HRV RMSSD
+ */
+async function calculateSessionHRV(sessionId) {
+    try {
+        const heartRateQuery = `
+            SELECT heart_rate 
+            FROM anxiety_profiles 
+            WHERE session_id = $1 AND heart_rate IS NOT NULL AND heart_rate > 0
+            ORDER BY recorded_at ASC
+        `;
+        
+        const result = await pool.query(heartRateQuery, [sessionId]);
+        
+        if (result.rows.length === 0) {
+            console.warn(`[DB] No heart rate data found for session ${sessionId}`);
+            return null;
+        }
+        
+        const heartRateData = result.rows.map(row => row.heart_rate);
+        const hrvScore = calculateRMSSD(heartRateData);
+        
+        return hrvScore;
+        
+    } catch (error) {
+        console.error('[DB ERROR] Failed to calculate session HRV:', error);
+        return null;
+    }
+}
+
+/**
+ * Completes a session with automatic HRV calculation
+ */
+async function completeSessionWithHRV(sessionId, completionData = {}) {
+    try {
+        const hrvScore = await calculateSessionHRV(sessionId);
+        
+        const sessionUpdateData = {
+            endedAt: completionData.endedAt || new Date().toISOString(),
+            durationMinutes: completionData.durationMinutes,
+            overallHrvRmssd: hrvScore,
+            status: completionData.status || 'Completed'
+        };
+        
+        await updateSession(sessionId, sessionUpdateData);
+        console.log(`[DB] Session ${sessionId} completed successfully with HRV: ${hrvScore}ms`);
+        return true;
+    } catch (error) {
+        console.error('[DB ERROR] Failed to complete session with HRV:', error);
+        return false;
+    }
+}
+
+/**
  * Gets patient treatment history with session analytics
- * @param {String} patientId - Patient ID
  */
 async function getPatientTreatmentHistory(patientId) {
     const query = `
@@ -159,87 +317,21 @@ async function getPatientTreatmentHistory(patientId) {
     }
 }
 
-/**
- * Fetches heart rate data for a session and calculates HRV RMSSD
- * @param {String} sessionId - Session ID to calculate HRV for
- * @returns {Promise<number|null>} - Calculated HRV RMSSD score or null if calculation fails
- */
-async function calculateSessionHRV(sessionId) {
-    try {
-        // Fetch all heart rate values for the session
-        const heartRateQuery = `
-            SELECT heart_rate 
-            FROM anxiety_profiles 
-            WHERE session_id = $1 AND heart_rate IS NOT NULL AND heart_rate > 0
-            ORDER BY recorded_at ASC
-        `;
-        
-        const result = await pool.query(heartRateQuery, [sessionId]);
-        
-        if (result.rows.length === 0) {
-            console.warn(`[DB] No heart rate data found for session ${sessionId}`);
-            return null;
-        }
-        
-        // Extract heart rate values into a flat array
-        const heartRateData = result.rows.map(row => row.heart_rate);
-        
-        console.log(`[DB] Found ${heartRateData.length} heart rate readings for session ${sessionId}`);
-        
-        // Calculate HRV using the RMSSD method
-        const hrvScore = calculateRMSSD(heartRateData);
-        
-        if (hrvScore !== null) {
-            console.log(`[DB] HRV RMSSD calculated for session ${sessionId}: ${hrvScore}ms`);
-        } else {
-            console.warn(`[DB] Failed to calculate HRV for session ${sessionId}`);
-        }
-        
-        return hrvScore;
-        
-    } catch (error) {
-        console.error('[DB ERROR] Failed to calculate session HRV:', error);
-        return null;
-    }
-}
-
-/**
- * Completes a session with automatic HRV calculation
- * @param {String} sessionId - Session ID to complete
- * @param {Object} completionData - Session completion information
- * @returns {Promise<boolean>} - True if successful, false otherwise
- */
-async function completeSessionWithHRV(sessionId, completionData = {}) {
-    try {
-        // First calculate HRV for the session
-        const hrvScore = await calculateSessionHRV(sessionId);
-        
-        // Prepare session update data
-        const sessionUpdateData = {
-            endedAt: completionData.endedAt || new Date().toISOString(),
-            durationMinutes: completionData.durationMinutes,
-            overallHrvRmssd: hrvScore,
-            status: completionData.status || 'Completed'
-        };
-        
-        // Update the session with HRV data
-        await updateSession(sessionId, sessionUpdateData);
-        
-        console.log(`[DB] Session ${sessionId} completed successfully with HRV: ${hrvScore}ms`);
-        return true;
-        
-    } catch (error) {
-        console.error('[DB ERROR] Failed to complete session with HRV:', error);
-        return false;
-    }
-}
-
 module.exports = {
-    insertAnxietyProfile,
     initializeDatabase,
+    insertAnxietyProfile,
+    
+    // Routing & Calibration
+    getActivePatientByDevice,
+    getPatientBaseline,
+    savePatientBaseline,
+
+    // Sessions & Analytics
     createSession,
+    createNewSession,
     updateSession,
-    getPatientTreatmentHistory,
+    endSession,
     calculateSessionHRV,
-    completeSessionWithHRV
+    completeSessionWithHRV,
+    getPatientTreatmentHistory
 };
