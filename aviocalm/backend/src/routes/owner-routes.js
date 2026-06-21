@@ -63,7 +63,7 @@ router.post('/create-therapist', async (req, res) => {
         if (existingUser.rows.length > 0) {
             return res.status(409).json({
                 success: false,
-                message: 'Username already exists'
+                message: 'Username already exists. Please choose a different one.'
             });
         }
 

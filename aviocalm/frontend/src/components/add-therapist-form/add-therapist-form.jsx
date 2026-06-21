@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom'; // 🔥 תוספת 1: ייבוא כלי הניווט
+import { useNavigate } from 'react-router-dom';
 import './add-therapist-form.css';
 import CreatedTherapistModal from './createdtherapistmodal';
 
 const AddTherapistForm = () => {
-  const navigate = useNavigate(); // 🔥 תוספת 2: אתחול הניווט
+  const navigate = useNavigate();
 
   const [form, setForm] = useState({
     username: "",
@@ -27,9 +27,8 @@ const AddTherapistForm = () => {
     e.preventDefault();
     setError("");
 
-    const usernameRegex = /^(?=.*[0-9])[A-Za-z0-9_]{5,}$/;
-    if (!usernameRegex.test(form.username)) {
-      setError("Username must be at least 5 characters, include a digit, and contain English letters, numbers or underscore only.");
+    if (!form.username.trim()) {
+      setError("Username is required.");
       return;
     }
 
@@ -69,7 +68,15 @@ const AddTherapistForm = () => {
 
   return (
     <div className="add-therapist-container">
-      <h1 className="add-therapist-page-title">Create Therapist</h1>
+      {/* Back button — identical styling to patient-profile__back-btn */}
+      <div className="w-full max-w-[500px] mb-4">
+        <button
+          onClick={() => navigate(-1)}
+          className="px-4 py-2 bg-gray-500 hover:bg-slate-600 text-white text-sm font-medium rounded border-0 cursor-pointer transition-all hover:-translate-y-px"
+        >
+          ← Back
+        </button>
+      </div>
 
       <div className="add-therapist-card">
         <h2 className="add-therapist-card__title">Create New Therapist</h2>
@@ -87,7 +94,7 @@ const AddTherapistForm = () => {
               type="text"
               name="username"
               className={`add-therapist-form__input ${error ? 'border-red-500' : ''}`}
-              placeholder="e.g. yael1"
+              placeholder="Enter username"
               value={form.username}
               onChange={handleChange}
               required
@@ -133,7 +140,7 @@ const AddTherapistForm = () => {
       <CreatedTherapistModal
         isOpen={isModalOpen}
         data={successData}
-        onClose={handleCloseModal} // 🔥 משתמשים בפונקציה החדשה
+        onClose={handleCloseModal}
       />
     </div>
   );

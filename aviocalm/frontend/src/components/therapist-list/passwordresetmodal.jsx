@@ -1,8 +1,8 @@
-import React, { useState } from 'react'; // 🔥 נוסיף useState
-import { CheckCircle, X, Copy, Check } from 'lucide-react'; // 🔥 נוסיף את האייקון Check
+import React, { useState } from 'react';
+import { CheckCircle, X, Copy, Check } from 'lucide-react';
 
 const PasswordResetModal = ({ isOpen, data, onClose }) => {
-  const [copied, setCopied] = useState(false); // 🔥 State לניהול הודעת ההעתקה
+  const [copied, setCopied] = useState(false);
 
   if (!isOpen || !data) return null;
 
@@ -10,16 +10,15 @@ const PasswordResetModal = ({ isOpen, data, onClose }) => {
     const text = `Username: ${data.username}\nTemp Password: ${data.temporaryPassword || data.tempPassword}`;
     navigator.clipboard.writeText(text);
     
-    // 🔥 במקום alert, נפעיל את האנימציה שלנו
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000); // נעלם אחרי 2 שניות
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[1000] animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 relative animate-in zoom-in duration-200">
         
-        {/* 🔥 הודעת ה-"Copied!" הקטנה שמופיעה מלמעלה */}
+        {/* Floating "Copied!" confirmation toast */}
         {copied && (
           <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 shadow-lg animate-in slide-in-from-bottom-2 duration-300">
             <Check size={14} className="text-green-400" /> Copied to clipboard!
@@ -39,7 +38,7 @@ const PasswordResetModal = ({ isOpen, data, onClose }) => {
           <p className="text-slate-500 text-sm mb-6">The password has been updated. Please send the new credentials to the therapist manually.</p>
 
           <div className="bg-slate-50 rounded-xl p-4 mb-6 text-left relative group border border-slate-100">
-             {/* כפתור העתקה קטן בפינה */}
+            {/* Inline copy icon in the top-right corner */}
             <button 
               onClick={copyToClipboard}
               className="absolute top-3 right-3 text-slate-400 hover:text-blue-600 transition-colors"
@@ -56,7 +55,7 @@ const PasswordResetModal = ({ isOpen, data, onClose }) => {
 
           <button
             onClick={onClose}
-            className="w-full px-4 py-3 bg-slate-900 text-white font-semibold rounded-xl hover:bg-slate-800 transition-all shadow-lg"
+            className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-all shadow-lg"
           >
             Done
           </button>

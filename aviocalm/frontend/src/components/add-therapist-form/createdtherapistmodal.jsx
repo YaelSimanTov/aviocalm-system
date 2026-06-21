@@ -1,68 +1,64 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { CheckCircle, X, Copy, Check } from 'lucide-react';
 
 const CreatedTherapistModal = ({ isOpen, data, onClose }) => {
-  if (!isOpen || !data) {
-    return null;
-  }
+  const [copied, setCopied] = useState(false);
+
+  if (!isOpen || !data) return null;
 
   const username = data.username || data.therapist?.username || '';
   const temporaryPassword = data.temporaryPassword || '';
 
-  const handleCopyCredentials = async () => {
-    const credentials = `Username: ${username}\nPassword: ${temporaryPassword}`;
-
-    try {
-      await navigator.clipboard.writeText(credentials);
-      alert('Credentials copied successfully');
-    } catch (error) {
-      console.error('Failed to copy credentials:', error);
-      alert('Failed to copy credentials');
-    }
+  const copyToClipboard = () => {
+    const text = `Username: ${username}\nTemp Password: ${temporaryPassword}`;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900 bg-opacity-60 flex items-center justify-center z-50">
-      <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg p-8 relative">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-5 text-gray-400 hover:text-gray-600 text-3xl"
-        >
-          ×
+    // Lighter semi-transparent backdrop — matches PasswordResetModal
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[1000] animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 relative animate-in zoom-in duration-200">
+
+        {/* Floating "Copied!" confirmation toast */}
+        {copied && (
+          <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 shadow-lg animate-in slide-in-from-bottom-2 duration-300">
+            <Check size={14} className="text-green-400" /> Copied to clipboard!
+          </div>
+        )}
+
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+          <X size={20} />
         </button>
 
         <div className="text-center">
-          <div className="mx-auto mb-6 h-24 w-24 rounded-full bg-green-100 flex items-center justify-center">
-            <span className="text-green-600 text-5xl">✓</span>
+          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 mb-6">
+            <CheckCircle className="h-10 w-10 text-blue-600" />
           </div>
 
-          <h2 className="text-2xl font-bold mb-4">Therapist Created!</h2>
+          <h3 className="text-xl font-bold text-slate-900 mb-2">Therapist Created!</h3>
+          <p className="text-slate-500 text-sm mb-6">Please provide these credentials to the therapist manually.</p>
 
-          <p className="text-gray-600 mb-6">
-            Please provide these credentials to the therapist:
-          </p>
+          {/* Compact credentials box with inline copy icon — matches PasswordResetModal */}
+          <div className="bg-slate-50 rounded-xl p-4 mb-6 text-left relative group border border-slate-100">
+            <button
+              onClick={copyToClipboard}
+              className="absolute top-3 right-3 text-slate-400 hover:text-blue-600 transition-colors"
+            >
+              {copied ? <Check size={18} className="text-green-500" /> : <Copy size={18} />}
+            </button>
 
-          <div className="bg-gray-50 border rounded-2xl p-6 text-left mb-6">
-            <p className="text-xs font-bold text-gray-400 mb-2">USERNAME</p>
-            <p className="text-blue-600 font-bold text-lg mb-4">
-              {username}
-            </p>
-
-            <p className="text-xs font-bold text-gray-400 mb-2">TEMPORARY PASSWORD</p>
-            <p className="text-blue-600 font-bold text-lg">
-              {temporaryPassword}
-            </p>
+            <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Credentials</span>
+            <div className="space-y-1">
+              <p className="text-sm text-slate-700"><strong>Username:</strong> {username}</p>
+              <p className="text-sm text-slate-700"><strong>Temp Password:</strong> <span className="font-mono font-bold text-blue-600">{temporaryPassword}</span></p>
+            </div>
           </div>
-
-          <button
-            onClick={handleCopyCredentials}
-            className="w-full bg-blue-50 hover:bg-blue-100 text-blue-600 py-4 rounded-2xl font-bold mb-3"
-          >
-            Copy Credentials
-          </button>
 
           <button
             onClick={onClose}
-            className="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-2xl font-bold"
+            className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-all shadow-lg"
           >
             Done
           </button>
