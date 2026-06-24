@@ -14,7 +14,8 @@ class SafetyEngine {
       minSpO2: 90,
       maxStress: 80,
       durationThreshold: 30, // seconds
-      deltaHeartRatePercent: 25.0
+      deltaHeartRatePercent: 25.0,
+      zScoreThreshold: 2.0   // Standard deviations above baseline before triggering
     };
     
     // Channel states tracking
@@ -42,7 +43,8 @@ class SafetyEngine {
     // Patient baseline data
     this.patientBaseline = {
       restingHeartRate: 75,
-      restingStress: 20
+      restingStress: 20,
+      hrStdDev: 5   // Default: 5 BPM standard deviation until calibration window completes
     };
     
     // Medical norms based on age and health status
@@ -74,10 +76,27 @@ class SafetyEngine {
   setPatientBaseline(baseline) {
     this.patientBaseline = {
       restingHeartRate: baseline.avg_resting_hr,
-      restingStress: baseline.avg_resting_stress
+      restingStress:    baseline.avg_resting_stress,
+      hrStdDev:         baseline.hr_std_dev || 5   // Fall back to 5 BPM if not supplied
     };
     
-    console.log(`[SAFETY ENGINE] Patient baseline set: HR=${this.patientBaseline.restingHeartRate}, Stress=${this.patientBaseline.restingStress}`);
+    console.log(`[SAFETY ENGINE] Patient baseline set: HR=${this.patientBaseline.restingHeartRate}, Stress=${this.patientBaseline.restingStress}, HR_StdDev=${this.patientBaseline.hrStdDev.toFixed(2)}`);
+  }
+
+  /**
+   * Calculate the Z-Score of a heart rate reading against the patient's calibrated baseline.
+   * Formula: Z = (currentHR - baselineMean) / baselineStdDev
+   * The standard deviation is derived from the calibration window (first N samples of the
+   * session) using population std dev: sqrt( sum((x - mean)^2) / N ).
+   * A Z-Score of 2.0 means the reading sits 2 standard deviations above the resting mean.
+   * Returns 0 when stdDev is zero (flat baseline) to prevent division by zero.
+   * @param {number} currentHR - Current smoothed heart rate in BPM
+   * @returns {number} Z-Score value
+   */
+  calculateZScore(currentHR) {
+    const stdDev = this.patientBaseline.hrStdDev;
+    if (stdDev === 0) return 0;
+    return (currentHR - this.patientBaseline.restingHeartRate) / stdDev;
   }
 
   /**
@@ -165,20 +184,28 @@ class SafetyEngine {
     const currentTime = Date.now();
     const channel = this.channelStates.relativeSafety;
     
-    // Calculate threshold based on patient baseline
-    const hrThreshold = this.patientBaseline.restingHeartRate * (1 + this.thresholds.deltaHeartRatePercent / 100);
+    // Check 1 — Delta_HR_Percent: HR exceeds the baseline by a fixed percentage
+    const hrThreshold    = this.patientBaseline.restingHeartRate * (1 + this.thresholds.deltaHeartRatePercent / 100);
+    const deltaViolation = metrics.heartRate > hrThreshold;
     
-    // Check if heart rate exceeds baseline threshold
-    const hrViolation = metrics.heartRate > hrThreshold;
+    // Check 2 — Z-Score: HR is N standard deviations above the calibrated resting mean.
+    // Uses the population stdDev calculated from the calibration window at session start.
+    const zScore         = this.calculateZScore(metrics.heartRate);
+    const zViolation     = zScore >= this.thresholds.zScoreThreshold;
+    
+    // Either check is sufficient to open a breach
+    const hrViolation = deltaViolation || zViolation;
     
     if (hrViolation) {
       // Start or continue violation tracking
       if (!channel.isActive) {
-        channel.isActive = true;
+        channel.isActive  = true;
         channel.startTime = currentTime;
-        channel.triggeredBy = [`HR > Baseline (${Math.round(hrThreshold)} BPM)`];
+        channel.triggeredBy = [];
+        if (deltaViolation) channel.triggeredBy.push(`HR > Baseline+${this.thresholds.deltaHeartRatePercent}% (${Math.round(hrThreshold)} BPM)`);
+        if (zViolation)     channel.triggeredBy.push(`Z-Score ${zScore.toFixed(2)} >= ${this.thresholds.zScoreThreshold}`);
         
-        console.log(`[SAFETY ENGINE] Relative Safety Channel VIOLATION START: HR=${metrics.heartRate} > Baseline=${Math.round(hrThreshold)}`);
+        console.log(`[SAFETY ENGINE] Relative Safety Channel VIOLATION START: HR=${metrics.heartRate} | delta=${deltaViolation} | Z-Score=${zScore.toFixed(2)} (threshold ${this.thresholds.zScoreThreshold})`);
       }
       
       // Calculate duration of violation
@@ -188,7 +215,7 @@ class SafetyEngine {
       const isEmergency = channel.duration >= this.thresholds.durationThreshold;
       
       if (isEmergency) {
-        console.log(`[SAFETY ENGINE] RELATIVE SAFETY EMERGENCY: HR violation duration ${channel.duration}s exceeds threshold ${this.thresholds.durationThreshold}s`);
+        console.log(`[SAFETY ENGINE] RELATIVE SAFETY EMERGENCY: duration ${channel.duration}s exceeds threshold ${this.thresholds.durationThreshold}s`);
       }
       
       return {
@@ -198,10 +225,12 @@ class SafetyEngine {
         duration: channel.duration,
         triggeredBy: channel.triggeredBy,
         metrics: {
-          heartRate: metrics.heartRate,
-          baselineHR: this.patientBaseline.restingHeartRate,
-          hrThreshold: hrThreshold,
-          deltaPercent: this.thresholds.deltaHeartRatePercent
+          heartRate:      metrics.heartRate,
+          baselineHR:     this.patientBaseline.restingHeartRate,
+          hrThreshold:    hrThreshold,
+          deltaPercent:   this.thresholds.deltaHeartRatePercent,
+          zScore:         parseFloat(zScore.toFixed(2)),
+          zScoreThreshold: this.thresholds.zScoreThreshold
         }
       };
     } else {

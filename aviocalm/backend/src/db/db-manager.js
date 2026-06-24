@@ -63,6 +63,7 @@ async function insertAnxietyProfile(record) {
 
     try {
         await pool.query(query, values);
+        console.log(`[DB] Successfully saved profile at ${record.timestamp}`);
     } catch (error) {
         console.error('[DB ERROR] Failed to insert anxiety profile:', error);
     }

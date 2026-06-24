@@ -1,66 +1,7 @@
 // HRV Calculator Service
 // Implements RMSSD (Root Mean Square of Successive Differences) algorithm for Heart Rate Variability
 
-/**
- * Calculates HRV using RMSSD (Root Mean Square of Successive Differences) method
- * @param {Array<number>} heartRateData - Array of heart rate values in BPM
- * @returns {number|null} - Calculated HRV RMSSD score rounded to 2 decimal places, or null if insufficient data
- */
-function calculateRMSSD(heartRateData) {
-    // Validate input
-    if (!Array.isArray(heartRateData) || heartRateData.length === 0) {
-        console.warn('[HRV Calculator] Invalid or empty heart rate data provided');
-        return null;
-    }
-
-    // Filter out invalid values (null, undefined, zero, negative, or non-numeric)
-    const validHeartRates = heartRateData.filter(hr => 
-        hr !== null && 
-        hr !== undefined && 
-        typeof hr === 'number' && 
-        hr > 0 && 
-        isFinite(hr)
-    );
-
-    // Need at least 2 valid readings for RMSSD calculation
-    if (validHeartRates.length < 2) {
-        console.warn('[HRV Calculator] Insufficient valid heart rate readings for RMSSD calculation');
-        return null;
-    }
-
-    try {
-        // Step 1: Convert heart rates to RR intervals in milliseconds
-        // RR (ms) = 60000 / HR (BPM)
-        const rrIntervals = validHeartRates.map(hr => 60000 / hr);
-
-        // Step 2: Calculate differences between consecutive RR intervals
-        const differences = [];
-        for (let i = 1; i < rrIntervals.length; i++) {
-            const difference = rrIntervals[i] - rrIntervals[i - 1];
-            differences.push(difference);
-        }
-
-        // Step 3: Square each difference
-        const squaredDifferences = differences.map(diff => diff * diff);
-
-        // Step 4: Calculate the mean of squared differences
-        const meanSquaredDifferences = squaredDifferences.reduce((sum, sqDiff) => sum + sqDiff, 0) / squaredDifferences.length;
-
-        // Step 5: Calculate the square root of the mean (RMSSD)
-        const rmssd = Math.sqrt(meanSquaredDifferences);
-
-        // Step 6: Round to 2 decimal places and return
-        const roundedRMSSD = Math.round(rmssd * 100) / 100;
-
-        console.log(`[HRV Calculator] RMSSD calculated: ${roundedRMSSD}ms from ${validHeartRates.length} heart rate readings`);
-        return roundedRMSSD;
-
-    } catch (error) {
-        console.error('[HRV Calculator] Error during RMSSD calculation:', error);
-        return null;
-    }
-}
-
+ 
 /**
  * Validates heart rate data quality before processing
  * @param {Array<number>} heartRateData - Array of heart rate values to validate
@@ -94,45 +35,49 @@ function validateHeartRateData(heartRateData) {
     };
 }
 
+ 
 /**
- * Calculates additional HRV metrics for comprehensive analysis
- * @param {Array<number>} heartRateData - Array of heart rate values in BPM
- * @returns {Object} - Object containing multiple HRV metrics
+ * Calculates a Stress Score (0-100) from an array of IBI (Inter-Beat Interval) values.
+ * Uses the RMSSD method: lower HRV (lower RMSSD) maps to higher stress.
+ * Designed for standalone use without clinical baselines.
+ *
+ * @param {Array<number>} ibiArray - IBI values in milliseconds (same as RR intervals)
+ * @returns {number} - Stress score 0 (relaxed) to 100 (high stress); returns 50 if data is insufficient
  */
-function calculateHRVMetrics(heartRateData) {
-    const validation = validateHeartRateData(heartRateData);
-    
-    if (!validation.isValid) {
-        return {
-            rmssd: null,
-            meanHR: null,
-            hrRange: null,
-            dataQuality: validation
-        };
+function calculateStressFromIBI(ibiArray) {
+    if (!Array.isArray(ibiArray) || ibiArray.length < 2) {
+        return 50; // Return neutral score when data is insufficient
     }
 
-    const validHeartRates = heartRateData.filter(hr => 
-        hr !== null && 
-        hr !== undefined && 
-        typeof hr === 'number' && 
-        hr > 0 && 
-        isFinite(hr)
-    );
+    // Step 1: Filter out physiologically implausible IBI values
+    // Valid range: 300ms–1500ms (equivalent to 40–200 BPM)
+    const valid = ibiArray.filter(v => typeof v === 'number' && v >= 300 && v <= 1500);
+    if (valid.length < 2) {
+        return 50;
+    }
 
-    const rmssd = calculateRMSSD(validHeartRates);
-    const meanHR = validHeartRates.reduce((sum, hr) => sum + hr, 0) / validHeartRates.length;
-    const hrRange = Math.max(...validHeartRates) - Math.min(...validHeartRates);
+    // Step 2: Calculate RMSSD directly from successive IBI differences
+    // IBI values are already in ms (equivalent to RR intervals), so no BPM conversion needed
+    let sumSquaredDiffs = 0;
+    for (let i = 1; i < valid.length; i++) {
+        const diff = valid[i] - valid[i - 1];
+        sumSquaredDiffs += diff * diff;
+    }
+    const rmssd = Math.sqrt(sumSquaredDiffs / (valid.length - 1));
 
-    return {
-        rmssd: rmssd,
-        meanHR: Math.round(meanHR * 100) / 100,
-        hrRange: hrRange,
-        dataQuality: validation
-    };
+    // Step 3: Invert and normalize RMSSD into a 0-100 stress score
+    // Reference range without clinical baselines:
+    //   RMSSD_MIN = 15ms  → stress score 100 (high stress / very low HRV)
+    //   RMSSD_MAX = 100ms → stress score 0   (relaxed / high HRV)
+    const RMSSD_MIN = 15;
+    const RMSSD_MAX = 100;
+    const normalized = (rmssd - RMSSD_MIN) / (RMSSD_MAX - RMSSD_MIN);
+    const stressScore = Math.round(Math.max(0, Math.min(100, (1 - normalized) * 100)));
+
+    return stressScore;
 }
 
 module.exports = {
-    calculateRMSSD,
     validateHeartRateData,
-    calculateHRVMetrics
+    calculateStressFromIBI
 };

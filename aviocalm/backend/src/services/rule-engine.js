@@ -143,7 +143,8 @@ function buildAlertDescription(channelKey, channelResult) {
     const current  = Math.round(m.heartRate  || 0);
     const baseline = Math.round(m.baselineHR || 0);
     const delta    = m.deltaPercent || 0;
-    return `Heart rate spike above personal baseline: ${current} BPM vs baseline ${baseline} BPM (threshold: +${delta}%)`;
+    const zPart    = m.zScore != null ? ` | Z-Score: ${m.zScore}` : '';
+    return `Heart rate spike above personal baseline: ${current} BPM vs baseline ${baseline} BPM (threshold: +${delta}%${zPart})`;
   }
 
   if (channelKey === 'combinedPanic') {
@@ -228,9 +229,16 @@ async function processVitalsSample({ sessionId, patientUuid, timestamp, heartRat
       const avgHr     = hrSamples.reduce((a, b) => a + b, 0)     / hrSamples.length;
       const avgStress = stressSamples.reduce((a, b) => a + b, 0) / stressSamples.length;
 
-      state.baseline = { hr: avgHr, stress: avgStress };
-      state.safetyEngine.setPatientBaseline({ avg_resting_hr: avgHr, avg_resting_stress: avgStress });
-      console.log(`[RULE ENGINE] Calibration complete — baseline HR=${avgHr.toFixed(1)}, Stress=${avgStress.toFixed(1)}. Rule evaluation starts next sample.`);
+      // Population standard deviation of the calibration HR window.
+      // Used by the Relative Statistical Channel to compute per-sample Z-Scores.
+      // Population formula (divide by N, not N-1) is appropriate here because
+      // the calibration window IS the full baseline population, not a sample of it.
+      const hrVariance = hrSamples.reduce((sum, val) => sum + (val - avgHr) ** 2, 0) / hrSamples.length;
+      const hrStdDev   = Math.sqrt(hrVariance);
+
+      state.baseline = { hr: avgHr, stress: avgStress, hrStdDev };
+      state.safetyEngine.setPatientBaseline({ avg_resting_hr: avgHr, avg_resting_stress: avgStress, hr_std_dev: hrStdDev });
+      console.log(`[RULE ENGINE] Calibration complete — baseline HR=${avgHr.toFixed(1)}, Stress=${avgStress.toFixed(1)}, HR_StdDev=${hrStdDev.toFixed(2)}. Rule evaluation starts next sample.`);
 
       await persistBaseline(patientUuid, sessionId, avgHr, avgStress);
     }

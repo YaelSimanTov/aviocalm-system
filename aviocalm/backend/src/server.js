@@ -1,3 +1,4 @@
+ 
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
@@ -5,25 +6,22 @@ const { Server } = require('socket.io');
 require('dotenv').config();
 
 // Database manager for saving IoT/VR data
-const { 
-    insertAnxietyProfile, 
-    initializeDatabase, 
-    completeSessionWithHRV,
-    getPatientBaseline, 
-    savePatientBaseline 
-} = require('./db/db-manager');
+const { insertAnxietyProfile, initializeDatabase, completeSessionWithHRV, getPatientBaseline, savePatientBaseline, createNewSession } = require('./db/db-manager');
+
+// Calibration logic for VR headset pre-flight sync
+const { processCalibration } = require('./sockets/calibrationHandler');
 
 // Device resolver for async patient-device routing (US 6.3)
-const { getPatientByDevice, createNewSession, completeSession } = require('./services/device-resolver');
+const { getPatientByDevice, completeSession } = require('./services/device-resolver');
 
 // Rule Engine for async alert generation (US 4.1)
 const { processVitalsSample, finalizeSession } = require('./services/rule-engine');
 
-// Mock data simulator for centralized mock data generation
-const { initializeMockSimulator, startMockSimulation, stopMockSimulation } = require('./services/mock-data-simulator');
+// HRV-based stress calculator for smartwatch IBI streams
+const { calculateStressFromIBI } = require('./services/hrv-calculator');
 
-// Calibration Logic
-const { processCalibration } = require('./sockets/calibrationHandler');
+// Mock data simulator for centralized mock data generation
+// const { initializeMockSimulator, startMockSimulation, stopMockSimulation, getMockSimulationStatus } = require('./services/mock-data-simulator');
 
 // Route imports
 const authRoutes = require('./routes/auth-routes');
@@ -32,7 +30,7 @@ const patientsRoutes = require('./routes/patients-routes');
 const analyticsRoutes = require('./routes/analytics-routes');
 const inventoryRoutes = require('./routes/inventory-routes');
 const assignmentRoutes = require('./routes/assignment-routes');
-const alertsRoutes = require('./routes/alerts-routes');
+const alertsRoutes     = require('./routes/alerts-routes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -40,37 +38,48 @@ const PORT = process.env.PORT || 5000;
 // ==========================================
 // HTTP Server & Socket.io Initialization
 // ==========================================
+// We wrap the Express app with a standard HTTP server to support WebSockets
 const server = http.createServer(app);
 const io = new Server(server, { 
-    cors: { 
-        origin: "*", 
-        methods: ["GET", "POST"] 
-    },
-    allowEIO3: true,
-    transports: ['websocket', 'polling']
+    cors: { origin: "*", methods: ["GET", "POST"] },
+    allowEIO3: true,                          // Unity Socket.IO v3 compatibility
+    transports: ['websocket', 'polling']      // Support both Unity and browser clients
 });
 
 // ==========================================
-// Middleware & REST API Routes
+// Middleware
 // ==========================================
 app.use(cors());
 app.use(express.json());
 
+// ==========================================
+// REST API Routes
+// ==========================================
 app.use('/api/auth', authRoutes);
 app.use('/api/owner', ownerRoutes);
 app.use('/api/patients', patientsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/v1', inventoryRoutes);
 app.use('/api/v1/assignments', assignmentRoutes);
-app.use('/api/alerts', alertsRoutes);
+app.use('/api/alerts',        alertsRoutes);
+// app.use("/api/watch", watchRoutes);
 
+// Health check endpoint
 app.get('/api/health', (req, res) => {
-    res.json({ success: true, data: { status: 'Server running', timestamp: new Date().toISOString() } });
+    res.json({
+        success: true,
+        data: { 
+            status: 'Server running',
+            timestamp: new Date().toISOString()
+        }
+    });
 });
 
 // ==========================================
 // VR & IoT WebSockets Logic (AvioCalm)
 // ==========================================
+
+// 1. Define Enums matching Unity's structure
 const FlightState = {
     BOARDING: 'BoardingState',
     TAKE_OFF: 'TakeOffState',
@@ -86,161 +95,139 @@ const LevelDiff = {
     HARD: 'Hard'
 };
 
-// In-memory session tracker mapping patient_uuid to their real-time clinical state
-const activeSessions = new Map();
+// 2. Server memory for the current patient's state (Global Scope)
+let currentVrState = 'Unknown'; 
+let currentDifficulty = LevelDiff.NONE;
 
-io.on('connection', async (socket) => {
+// 3. In-memory session tracker: patient_uuid -> { nationalId, sessionId }
+// Used to route incoming device streams to the correct patient session
+const activeSessions = {};
+
+// 4. Calibration accumulators: patient_uuid -> HR sample array
+// Populated by watch_vitals_update while a calibration window is open
+const activeCalibrations = {};
+
+// 5. Latest HR cache: patient_uuid -> most recent heart rate (BPM)
+// Used to seed CALIBRATION_START before the first watch packet arrives
+const latestPatientHR = {};
+
+// ==========================================
+// Mock Data Generator for ActiveMonitor Testing
+// ==========================================
+
+// Safety thresholds (Epic 4.1 - Safety Brakes)
+// const SAFETY_THRESHOLDS = {
+//     HR_WARNING: 100,      // Warning threshold for Heart Rate
+//     HR_EMERGENCY: 120,    // Emergency threshold for Heart Rate
+//     STRESS_EMERGENCY: 80, // Emergency threshold for Stress Score
+//     SPO2_MIN: 90          // Minimum acceptable SpO2 level
+// };
+
+io.on('connection', (socket) => {
     console.log(`[CONNECTION] New client connected with ID: ${socket.id}`);
-    
-    try {
-        await initializeDatabase();
-        initializeMockSimulator(io);
-        await startMockSimulation(); // Can be commented out in production
-    } catch (error) {
-        console.error('[INIT ERROR] Database initialization failed:', error);
-    }
-
-    // Resolve device to patient via kit assignment on connection
-    const deviceId = socket.handshake.query.deviceId;
-    if (deviceId) {
-        try {
-            const deviceInfo = await getPatientByDevice(deviceId);
-            if (deviceInfo) {
-                socket.patientUuid = deviceInfo.patient_uuid;
-                socket.nationalId = deviceInfo.national_id;
-                socket.deviceType = deviceInfo.device_type;
-
-                // Initialize a unified patient state if it doesn't exist
-                if (!activeSessions.has(socket.patientUuid)) {
-                    const sessionId = await createNewSession(socket.patientUuid);
-                    activeSessions.set(socket.patientUuid, {
-                        nationalId: deviceInfo.national_id,
-                        sessionId: sessionId,
-                        vrState: 'Unknown',
-                        difficulty: LevelDiff.NONE,
-                        latestHR: 0,
-                        latestStress: 0,
-                        latestSpo2: 0,
-                        calibrationData: null // Null means not currently calibrating
-                    });
-                    console.log(`[SESSION] New session ${sessionId} opened for patient ${deviceInfo.national_id}`);
-                }
-            } else {
-                console.warn(`[UNASSIGNED] Device ${deviceId} connected without an active assignment.`);
-            }
-        } catch (error) {
-            console.error(`[DEVICE RESOLVER ERROR] Failed resolving device ${deviceId}:`, error);
-        }
-    }
 
     // ==========================================
-    // CHANNEL 1: Unity VR Logs
+    // CHANNEL 0: VR Headset Lifecycle Events
     // ==========================================
-    socket.on('vr_system_log', (data) => {
+
+    socket.on('SESSION_START', async (data) => {
         try {
             const payload = typeof data === 'string' ? JSON.parse(data) : data;
-            const logMessage = payload.content || payload;
-            
-            io.emit('vr_status_change', true); 
+            const deviceInfo = await getPatientByDevice(payload.deviceId);
+            const patientId = deviceInfo ? deviceInfo.patient_uuid : null;
+            if (!patientId) return;
 
-            if (!socket.patientUuid || !activeSessions.has(socket.patientUuid)) return;
-            const sessionData = activeSessions.get(socket.patientUuid);
+            const newSessionId = await createNewSession(patientId);
+            // Store as { nationalId, sessionId } for compatibility with watch Channel 2
+            activeSessions[patientId] = { nationalId: deviceInfo.national_id, sessionId: newSessionId };
+            console.log(`[SESSION] Started session ${newSessionId} for patient ${patientId}`);
+        } catch (err) {
+            console.error(`[SESSION START ERROR] ${err.message}`);
+        }
+    });
 
-            // Parse flight state and update specific patient's memory
-            if (logMessage.includes("Flight state changed to:")) {
-                const extractedState = logMessage.split(": ")[1].trim();
-                if (Object.values(FlightState).includes(extractedState)) {
-                    sessionData.vrState = extractedState;
-                    console.log(`[UNITY VR | ${sessionData.nationalId}] State transitioned to: ${extractedState}`);
-                }
-            } 
-            // Parse difficulty level
-            else if (logMessage.includes("The Level Diffculty is")) {
-                const extractedDiff = logMessage.split("is ")[1].trim();
-                if (Object.values(LevelDiff).includes(extractedDiff)) {
-                    sessionData.difficulty = extractedDiff;
-                    console.log(`[UNITY VR | ${sessionData.nationalId}] Difficulty set to: ${extractedDiff}`);
-                }
+    socket.on('SESSION_END', async (data) => {
+        try {
+            const payload = typeof data === 'string' ? JSON.parse(data) : data;
+            const deviceInfo = await getPatientByDevice(payload.deviceId);
+            const patientId = deviceInfo ? deviceInfo.patient_uuid : null;
+            if (!patientId) return;
+
+            const currentSessionId = activeSessions[patientId]?.sessionId;
+            if (currentSessionId) {
+                await finalizeSession(currentSessionId);
+                await completeSession(currentSessionId);
+                console.log(`[SESSION] Ended session ${currentSessionId} for patient ${patientId}`);
+                delete activeSessions[patientId];
+                delete latestPatientHR[patientId];
+                delete activeCalibrations[patientId];
             }
         } catch (err) {
-            console.error(`[VR LOG ERROR] ${err.message}`);
+            console.error(`[SESSION END ERROR] ${err.message}`);
         }
     });
 
     // ==========================================
-    // CHANNEL 2: Samsung Watch Vitals
+    // CHANNEL 1: Listening ONLY to Unity VR
     // ==========================================
-    socket.on('watch_vitals_update', async (data) => {
+
+    socket.on('vr_system_log', async (data) => {
         try {
             const payload = typeof data === 'string' ? JSON.parse(data) : data;
-            
-            // Extract inner content mapped from Android app
-            const sensorData = typeof payload.content === 'string' ? JSON.parse(payload.content) : payload;
-            
-            io.emit('watch_status_change', true);
+            const deviceId = payload.deviceId;
+            const logMessage = payload.content;
 
-            if (!socket.patientUuid || !activeSessions.has(socket.patientUuid)) return;
-            const sessionData = activeSessions.get(socket.patientUuid);
+            if (!deviceId || !logMessage) return;
 
-            // Update latest clinical metrics in memory
-            sessionData.latestHR = sensorData.hr || sensorData.heartRate;
-            sessionData.latestSpo2 = sensorData.spo2;
-            sessionData.latestStress = sensorData.stressScore || 0;
+            const deviceInfo = await getPatientByDevice(deviceId);
+            const patientId = deviceInfo ? deviceInfo.patient_uuid : null;
 
-            // Collect HR if calibration is currently active
-            if (sessionData.calibrationData !== null && sessionData.latestHR > 0) {
-                sessionData.calibrationData.push(sessionData.latestHR);
+            if (!patientId) {
+                console.log(`[UNASSIGNED VR LOG] Device ${deviceId}: ${logMessage}`);
+                return;
             }
 
-            // Emit distress alert
-            io.emit('distress_alert', sessionData.latestHR > 110);
+            io.emit('vr_status_change', true);
+            console.log(`[VR LOG | Patient: ${patientId}] ${logMessage}`);
 
-            // Sync IoT Vitals with VR Context and save to DB
-            const syncedPatientRecord = {
-                patientId: sessionData.nationalId,
-                sessionId: sessionData.sessionId,
-                timestamp: new Date().toISOString(),
-                vrState: sessionData.vrState,
-                difficulty: sessionData.difficulty,
-                vitals: {
-                    heartRate: sessionData.latestHR,
-                    stressScore: sessionData.latestStress,
-                    spo2: sessionData.latestSpo2
-                },
-                therapistAction: 'None'
-            };
-
-            await insertAnxietyProfile(syncedPatientRecord);
-
-            await processVitalsSample({
-                sessionId: sessionData.sessionId,
-                patientUuid: socket.patientUuid,
-                timestamp: syncedPatientRecord.timestamp,
-                heartRate: sessionData.latestHR,
-                stressScore: sessionData.latestStress,
-                spo2: sessionData.latestSpo2,
-            });
+            if (logMessage.includes("Flight state changed to:")) {
+                const extractedState = logMessage.split(": ")[1].trim();
+                if (Object.values(FlightState).includes(extractedState)) {
+                    currentVrState = extractedState;
+                }
+            }
+            else if (logMessage.includes("The Level Diffculty is")) {
+                const extractedDiff = logMessage.split("is ")[1].trim();
+                if (Object.values(LevelDiff).includes(extractedDiff)) {
+                    currentDifficulty = extractedDiff;
+                }
+            }
         } catch (err) {
-            console.error(`[VITALS ERROR] ${err.message}`);
+            console.error(`[LOG ERROR] ${err.message}`);
         }
     });
 
     // ==========================================
     // CHANNEL 3: VR Calibration Flow
     // ==========================================
+
     socket.on('CALIBRATION_START', async (data) => {
         try {
-            if (!socket.patientUuid || !activeSessions.has(socket.patientUuid)) return;
-            const sessionData = activeSessions.get(socket.patientUuid);
+            const payload = typeof data === 'string' ? JSON.parse(data) : data;
+            const deviceInfo = await getPatientByDevice(payload.deviceId);
+            const patientId = deviceInfo ? deviceInfo.patient_uuid : null;
 
-            console.log(`[CALIBRATION] Starting for patient: ${sessionData.nationalId}`);
-            
-            // Initialize array to start collecting HR samples
-            sessionData.calibrationData = [];
+            if (!patientId) {
+                console.log(`[CALIBRATION] Device ${payload.deviceId} has no active patient assignment.`);
+                return;
+            }
 
-            const historicalBaseline = await getPatientBaseline(socket.patientUuid) || 72;
-            const startingHR = sessionData.latestHR || 0; 
-            
+            console.log(`[CALIBRATION] Starting for patient: ${patientId}`);
+            activeCalibrations[patientId] = [];
+
+            const historicalBaseline = await getPatientBaseline(patientId) || 72;
+            const startingHR = latestPatientHR[patientId] || 0;
+
             const response = processCalibration(startingHR, historicalBaseline);
             socket.emit(response.event, response.payload);
         } catch (err) {
@@ -250,60 +237,179 @@ io.on('connection', async (socket) => {
 
     socket.on('CALIBRATION_END', async (data) => {
         try {
-            if (!socket.patientUuid || !activeSessions.has(socket.patientUuid)) return;
-            const sessionData = activeSessions.get(socket.patientUuid);
-            const hrArray = sessionData.calibrationData;
+            const payload = typeof data === 'string' ? JSON.parse(data) : data;
+            const deviceInfo = await getPatientByDevice(payload.deviceId);
+            const patientId = deviceInfo ? deviceInfo.patient_uuid : null;
+            if (!patientId) return;
+
+            const hrArray = activeCalibrations[patientId];
+            const currentSessionId = activeSessions[patientId]?.sessionId || null;
 
             if (hrArray && hrArray.length > 0) {
                 const sum = hrArray.reduce((a, b) => a + b, 0);
                 const avgBaseline = Math.round(sum / hrArray.length);
-                
-                console.log(`[CALIBRATION] Complete. Saving avg HR: ${avgBaseline} for patient: ${sessionData.nationalId}`);
-                await savePatientBaseline(socket.patientUuid, sessionData.sessionId, avgBaseline);
+                console.log(`[CALIBRATION] Complete. Saving avg HR: ${avgBaseline} for patient: ${patientId}`);
+                await savePatientBaseline(patientId, currentSessionId, avgBaseline);
             } else {
-                console.log(`[CALIBRATION] Complete, but no HR data collected for patient: ${sessionData.nationalId}`);
+                console.log(`[CALIBRATION] Complete, but no data collected for patient: ${patientId}`);
             }
 
-            // Close calibration window
-            sessionData.calibrationData = null;
+            delete activeCalibrations[patientId];
         } catch (err) {
             console.error(`[CALIBRATION END ERROR] ${err.message}`);
         }
     });
 
     // ==========================================
-    // CHANNEL 4: Therapist Controls
+    // CHANNEL 2: Listening ONLY to the Samsung Watch (IoT)
     // ==========================================
-    socket.on('emergency_stop', (data) => {
-        const sessionData = activeSessions.get(socket.patientUuid);
-        const hr = sessionData ? sessionData.latestHR : 0;
-        const stress = sessionData ? sessionData.latestStress : 0;
 
-        console.log(`[EMERGENCY] Manual emergency stop triggered. Timestamp: ${data.timestamp}`);
+    socket.on('watch_vitals_update', async (data) => {
+        try {
+            // Support both old (raw object) and new (JSON string) payload formats
+            const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+
+            // Normalize fields — new Android format nests vitals under a `vitals` key
+            const vitals          = parsed.vitals || {};
+            const heartRate       = vitals.heartRate  ?? parsed.heartRate  ?? 0;
+            const spo2            = vitals.spo2        ?? parsed.spo2;
+            const ibiData         = vitals.ibiData     || parsed.ibiData    || [];
+
+            // Use the device-reported stress score when available; otherwise derive it
+            // from the IBI array using the RMSSD method (lower HRV = higher stress)
+            const rawStress       = vitals.stressScore ?? parsed.stressScore ?? 0;
+            const stressScore     = rawStress > 0 ? rawStress : calculateStressFromIBI(ibiData);
+
+            // Broadcast to React FE that Watch is connected
+            io.emit('watch_status_change', true);
+
+            // Emit distress alert based on HR threshold
+            io.emit('distress_alert', heartRate > 110);
+
+            // Lazy binding: Android sends deviceId inside the payload, not in the handshake query.
+            // If this socket has not yet been bound to a patient, attempt to resolve it now
+            // using the deviceId extracted from the current packet.
+            if (!socket.patientUuid) {
+                const currentDeviceId = parsed.deviceId;
+                if (currentDeviceId) {
+                    try {
+                        const deviceInfo = await getPatientByDevice(currentDeviceId);
+                        if (deviceInfo) {
+                            socket.patientUuid = deviceInfo.patient_uuid;
+                            socket.nationalId  = deviceInfo.national_id;
+                            socket.deviceType  = deviceInfo.device_type;
+                            console.log(`[LAZY BIND] Device ${currentDeviceId} bound to patient: ${deviceInfo.national_id}`);
+
+                            // Open a new session for this patient if one is not already active
+                            if (!activeSessions[socket.patientUuid]) {
+                                const sessionId = await createNewSession(socket.patientUuid);
+                                activeSessions[socket.patientUuid] = {
+                                    nationalId: deviceInfo.national_id,
+                                    sessionId
+                                };
+                                console.log(`[SESSION] New session ${sessionId} opened for patient ${deviceInfo.national_id}`);
+                            }
+                        } else {
+                            console.warn(`[Unassigned Stream] Device ${currentDeviceId} has no active kit assignment — skipping DB insert`);
+                        }
+                    } catch (bindErr) {
+                        console.error(`[LAZY BIND] Failed to resolve device ${currentDeviceId}: ${bindErr.message}`);
+                    }
+                }
+            }
+
+            // Cache the latest HR for this patient to seed CALIBRATION_START
+            if (socket.patientUuid) {
+                latestPatientHR[socket.patientUuid] = heartRate;
+
+                // If a calibration window is open for this patient, accumulate the HR sample
+                if (activeCalibrations[socket.patientUuid] !== undefined && heartRate > 0) {
+                    activeCalibrations[socket.patientUuid].push(heartRate);
+                }
+            }
+
+            // Skip DB insertion if the socket is still unresolved after the lazy bind attempt
+            if (!socket.patientUuid) {
+                console.warn(`[Unassigned Stream] watch_vitals_update from unresolved socket ${socket.id} — skipping DB insert`);
+                return;
+            }
+
+            // Look up the active session for this patient from the in-memory tracker
+            const sessionData = activeSessions[socket.patientUuid];
+            if (!sessionData) {
+                console.warn(`[SESSION] No active session for patient ${socket.patientUuid} — skipping DB insert`);
+                return;
+            }
+
+            const timestamp = new Date().toISOString();
+
+            // Sync IoT vitals with VR context and persist to anxiety_profiles:
+            // patient_id = national_id (VARCHAR FK referencing patients.national_id)
+            // session_id = UUID from the sessions table
+            await insertAnxietyProfile({
+                patientId:      sessionData.nationalId,
+                sessionId:      sessionData.sessionId,
+                timestamp,
+                vrState:        currentVrState,
+                difficulty:     currentDifficulty,
+                vitals:         { heartRate, stressScore, spo2, ibiData },
+                therapistAction: 'None'
+            });
+
+            // Feed the sample to the Rule Engine for anomaly detection and alert generation
+            await processVitalsSample({
+                sessionId:   sessionData.sessionId,
+                patientUuid: socket.patientUuid,
+                timestamp,
+                heartRate,
+                stressScore,
+                spo2,
+            });
+
+        } catch (err) {
+            console.error(`[WATCH] Failed to process watch_vitals_update from ${socket.id}: ${err.message}`);
+        }
+    });
+
+    // Handle emergency stop requests from frontend
+    socket.on('emergency_stop', (data) => {
+        console.log(`[EMERGENCY] Manual emergency stop triggered by therapist: ${data.timestamp}`);
         io.emit('EMERGENCY_STOP', {
             timestamp: new Date().toISOString(),
-            reason: 'Manual Therapist Override',
-            values: { hr: hr, stress: stress }
+            reason: 'Manual Therapist Override'
         });
     });
 
-    // ==========================================
-    // Disconnect Handling
-    // ==========================================
+    // Handle progression feedback from therapist
+    // socket.on('progression_feedback', (data) => {
+    //     console.log(`[FEEDBACK] Therapist ${data.agreed ? 'agreed' : 'disagreed'} with system recommendation: ${data.timestamp}`);
+    //     // Reset simulation for next scene
+    //     if (data.agreed) {
+    //         currentHr = BASELINE_HR;
+    //         currentStress = BASELINE_STRESS;
+    //         currentSpo2 = BASELINE_SPO2;
+    //         simulationTime = 0;
+    //         console.log(`[SIMULATION] Reset for next VR scene`);
+    //     }
+    // });
+
     socket.on('disconnect', async () => {
         console.log(`[CONNECTION] Client disconnected: ${socket.id}`);
 
-        if (socket.deviceType === 'VR' && socket.patientUuid) {
-            const sessionData = activeSessions.get(socket.patientUuid);
+        // Complete the session when the VR device disconnects (safety net if SESSION_END was not received)
+        if (socket.patientUuid) {
+            const sessionData = activeSessions[socket.patientUuid];
             if (sessionData) {
                 try {
+                    // Flush any open rule-engine breaches before closing the session
                     await finalizeSession(sessionData.sessionId);
                     await completeSession(sessionData.sessionId);
-                    console.log(`[SESSION] Session ${sessionData.sessionId} completed for patient ${socket.nationalId}`);
+                    console.log(`[SESSION] Session ${sessionData.sessionId} completed on disconnect for patient ${socket.nationalId}`);
                 } catch (error) {
-                    console.error(`[SESSION ERROR] Error completing session:`, error);
+                    console.error(`[SESSION] Error completing session on disconnect:`, error);
                 } finally {
-                    activeSessions.delete(socket.patientUuid);
+                    delete activeSessions[socket.patientUuid];
+                    console.log(`[SESSION] Removed active session for patient ${socket.nationalId} from tracker`);
                 }
             }
         }
@@ -313,8 +419,13 @@ io.on('connection', async (socket) => {
 // ==========================================
 // Start Server
 // ==========================================
+// CRITICAL: Use server.listen() instead of app.listen() to run both REST and WebSockets
+initializeDatabase()
+    .then(() => console.log('[INIT] Database initialization completed'))
+    .catch((err) => console.error('[INIT] Database initialization failed:', err));
+
 server.listen(PORT, () => {
     console.log(`AvioCalm Backend Server running on port ${PORT}`);
     console.log(`Health check available at: http://localhost:${PORT}/api/health`);
-    console.log(`WebSocket Server is ready to accept hardware connections`);
+    console.log(`WebSocket Server is ready to accept connections`);
 });
