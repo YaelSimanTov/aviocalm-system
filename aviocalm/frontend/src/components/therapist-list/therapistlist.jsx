@@ -129,7 +129,6 @@ const TherapistList = () => {
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Username</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Full Name</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Role</th>
                 <th className="px-6 py-4 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -138,10 +137,6 @@ const TherapistList = () => {
                 <tr key={t.username} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-6 py-4 text-sm text-blue-600 font-medium">{t.username}</td>
                   <td className="px-6 py-4 text-sm text-slate-700">{t.first_name} {t.last_name}</td>
-                  <td className="px-6 py-4">
-                    <span className="px-3 py-1 text-xs font-medium bg-blue-50 text-blue-600 rounded-full">{t.role}</span>
-                  </td>
-
                   <td className="px-6 py-4 text-center relative">
                     <button onClick={() => setOpenMenuId(openMenuId === t.username ? null : t.username)} className="p-2 text-slate-400">
                       <MoreVertical size={18} />

@@ -1,27 +1,18 @@
 import React from 'react';
+import { getStatusEntry } from '../../utils/status-config';
 import './status-badge.css';
 
 /**
- * Status Badge component for displaying device status with color coding
- * @param {string} status - The status to display ('Active', 'Broken', 'Maintenance')
+ * Status Badge component for displaying device status with color coding.
+ * Uses STATUS_CONFIG as the single source of truth for labels and color classes.
+ * @param {string} status - DB value ('Active', 'Broken', 'Maintenance')
  */
 export const StatusBadge = ({ status }) => {
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Active':
-        return 'status-badge--active';
-      case 'Broken':
-        return 'status-badge--broken';
-      case 'Maintenance':
-        return 'status-badge--maintenance';
-      default:
-        return 'status-badge--unknown';
-    }
-  };
+  const entry = getStatusEntry(status);
 
   return (
-    <span className={`status-badge ${getStatusColor(status)}`}>
-      {status}
+    <span className={`status-badge ${entry.badgeClass}`}>
+      {entry.label}
     </span>
   );
 };

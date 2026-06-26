@@ -256,6 +256,34 @@ class InventoryService {
 
         return updateResult.rows[0];
     }
+
+    /**
+     * Update the status of a single device
+     * @param {string} deviceId - The device UUID
+     * @param {string} status - New status: 'Active', 'Broken', or 'Maintenance'
+     * @returns {Promise<Object>} Updated device record
+     */
+    async updateDeviceStatus(deviceId, status) {
+        const validStatuses = ['Active', 'Broken', 'Maintenance'];
+        if (!validStatuses.includes(status)) {
+            throw new Error(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+        }
+
+        const query = `
+            UPDATE devices
+            SET status = $1
+            WHERE device_id = $2
+            RETURNING device_id, device_type, status
+        `;
+
+        const result = await pool.query(query, [status, deviceId]);
+
+        if (result.rows.length === 0) {
+            throw new Error('Device not found');
+        }
+
+        return result.rows[0];
+    }
 }
 
 // Create singleton instance
@@ -267,5 +295,6 @@ module.exports = {
     getAllDevices: () => inventoryService.getAllDevices(),
     getAllKits: () => inventoryService.getAllKits(),
     getAvailableKits: () => inventoryService.getAvailableKits(),
-    updateKit: (kitId, updateData) => inventoryService.updateKit(kitId, updateData)
+    updateKit: (kitId, updateData) => inventoryService.updateKit(kitId, updateData),
+    updateDeviceStatus: (deviceId, status) => inventoryService.updateDeviceStatus(deviceId, status)
 };

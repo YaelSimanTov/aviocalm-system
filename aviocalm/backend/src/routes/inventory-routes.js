@@ -6,7 +6,8 @@ const {
     getAllDevicesHandler, 
     getAllKitsHandler, 
     getAvailableKitsHandler,
-    updateKitHandler
+    updateKitHandler,
+    updateDeviceStatusHandler
 } = require('../controllers/inventory-controller');
 
 // POST /api/v1/devices - Register a new device
@@ -26,5 +27,8 @@ router.get('/kits/available', getAvailableKitsHandler);
 
 // PATCH /api/v1/kits/:kit_id - Update a kit by swapping a single device
 router.patch('/kits/:kit_id', updateKitHandler);
+
+// PUT /api/v1/devices/:id/status - Update device status
+router.put('/devices/:id/status', updateDeviceStatusHandler);
 
 module.exports = router;

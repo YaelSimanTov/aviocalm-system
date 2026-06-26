@@ -194,3 +194,32 @@
   color: #6b7280;
   font-size: 0.875rem;
 }
+
+/* Device status dropdown — colors match StatusBadge component */
+.device-status-select {
+  appearance: none;
+  border: none;
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  cursor: pointer;
+  outline: none;
+}
+
+.device-status-select--active {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.device-status-select--broken {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.device-status-select--maintenance {
+  background-color: #fef3c7;
+  color: #92400e;
+}

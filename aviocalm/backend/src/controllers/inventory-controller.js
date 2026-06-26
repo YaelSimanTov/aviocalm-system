@@ -3,7 +3,7 @@
  * Handles HTTP requests for device and kit management
  */
 
-const { createDevice, createKit, getAllDevices, getAllKits, getAvailableKits, updateKit } = require('../services/inventory-service');
+const { createDevice, createKit, getAllDevices, getAllKits, getAvailableKits, updateKit, updateDeviceStatus } = require('../services/inventory-service');
 
 /**
  * Register a new device
@@ -232,11 +232,52 @@ const updateKitHandler = async (req, res) => {
     }
 };
 
+/**
+ * Update device status
+ * PUT /api/v1/devices/:id/status
+ */
+const updateDeviceStatusHandler = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        if (!status) {
+            return res.status(400).json({
+                success: false,
+                error: 'status is required'
+            });
+        }
+
+        const device = await updateDeviceStatus(id, status);
+
+        res.json({
+            success: true,
+            data: device
+        });
+
+    } catch (error) {
+        console.error('Update device status error:', error);
+
+        if (error.message.includes('Invalid status') || error.message.includes('not found')) {
+            return res.status(400).json({
+                success: false,
+                error: error.message
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+};
+
 module.exports = {
     registerDevice,
     createNewKit,
     getAllDevicesHandler,
     getAllKitsHandler,
     getAvailableKitsHandler,
-    updateKitHandler
+    updateKitHandler,
+    updateDeviceStatusHandler
 };

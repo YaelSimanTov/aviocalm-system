@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Package, Plus, RefreshCw, Smartphone, Wrench } from 'lucide-react';
 import { StatusBadge } from '../status-badge';
+import { DeviceStatusDropdown } from '../device-status-dropdown/device-status-dropdown';
 import { KitCreatorModal } from '../kit-creator-modal';
 import { DeviceRegistrationModal } from '../device-registration-modal';
 import { EditKitModal } from '../edit-kit-modal';
@@ -89,6 +90,36 @@ export const InventoryDashboard = () => {
     fetchInventoryData();
   };
 
+  /**
+   * Update a device's status via PUT /api/v1/devices/:id/status
+   * After saving, re-fetch all inventory so Active Kits reflects the change immediately
+   */
+  const handleDeviceStatusChange = async (deviceId, newStatus) => {
+    try {
+      // Optimistically update local devices state for instant UI feedback
+      setDevices(prev =>
+        prev.map(d => d.device_id === deviceId ? { ...d, status: newStatus } : d)
+      );
+
+      const response = await api.put(`/v1/devices/${deviceId}/status`, { status: newStatus });
+
+      if (!response.success) {
+        setError('Failed to update device status');
+        fetchInventoryData(); // Revert by re-fetching
+      } else {
+        // Refresh kits so VR/Watch status columns reflect the new device status
+        const kitsResponse = await api.get('/v1/kits');
+        if (kitsResponse.success && kitsResponse.data) {
+          setKits(kitsResponse.data);
+        }
+      }
+    } catch (err) {
+      console.error('Error updating device status:', err);
+      setError('Network error. Please try again.');
+      fetchInventoryData(); // Revert on error
+    }
+  };
+
   if (loading) {
     return (
       <div className="inventory-dashboard">
@@ -153,7 +184,10 @@ export const InventoryDashboard = () => {
                       <td className="device-id">{device.device_id.slice(0, 8)}...</td>
                       <td>{device.device_type}</td>
                       <td>
-                        <StatusBadge status={device.status} />
+                        <DeviceStatusDropdown
+                          status={device.status}
+                          onChange={(newStatus) => handleDeviceStatusChange(device.device_id, newStatus)}
+                        />
                       </td>
                       <td>
                         {device.last_seen 
