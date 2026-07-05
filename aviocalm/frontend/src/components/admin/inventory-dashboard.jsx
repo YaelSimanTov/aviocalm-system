@@ -91,6 +91,29 @@ export const InventoryDashboard = () => {
   };
 
   /**
+   * Converts a raw last_seen timestamp into a human-readable relative string.
+   * Returns "Never" when the value is null/undefined.
+   * Examples: "just now", "5 minutes ago", "3 hours ago", "2 days ago"
+   */
+  const formatLastSeen = (timestamp) => {
+    if (!timestamp) return 'Never';
+
+    const diff = Date.now() - new Date(timestamp).getTime();
+    const seconds = Math.floor(diff / 1000);
+
+    if (seconds < 60)  return 'just now';
+
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60)  return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24)    return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+
+    const days = Math.floor(hours / 24);
+    return `${days} day${days === 1 ? '' : 's'} ago`;
+  };
+
+  /**
    * Update a device's status via PUT /api/v1/devices/:id/status
    * After saving, re-fetch all inventory so Active Kits reflects the change immediately
    */
@@ -189,11 +212,8 @@ export const InventoryDashboard = () => {
                           onChange={(newStatus) => handleDeviceStatusChange(device.device_id, newStatus)}
                         />
                       </td>
-                      <td>
-                        {device.last_seen 
-                          ? new Date(device.last_seen).toLocaleString()
-                          : 'Never'
-                        }
+                      <td className="last-seen-cell">
+                        {formatLastSeen(device.last_seen)}
                       </td>
                     </tr>
                   ))

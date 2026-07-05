@@ -195,6 +195,12 @@
   font-size: 0.875rem;
 }
 
+.last-seen-cell {
+  color: #6b7280;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
 /* Device status dropdown — colors match StatusBadge component */
 .device-status-select {
   appearance: none;

@@ -1,5 +1,5 @@
 const pool = require('../config/db');
-const { completeSessionWithHRV } = require('../db/db-manager');
+const { completeSessionWithHRV, getVrEventsBySession } = require('../db/db-manager');
 
 // Get all patients (with role-based filtering and search)
 const getAllPatients = async (req, res) => {
@@ -938,6 +938,18 @@ const createClinicalNote = async (req, res) => {
   }
 };
 
+// GET /api/patients/sessions/:sessionId/vr-events
+const getVrEventsHandler = async (req, res) => {
+  const { sessionId } = req.params;
+  try {
+    const events = await getVrEventsBySession(sessionId);
+    res.json({ success: true, data: events });
+  } catch (error) {
+    console.error('[VR EVENTS] Failed to fetch events for session', sessionId, error);
+    res.status(500).json({ success: false, error: 'Failed to fetch VR events' });
+  }
+};
+
 module.exports = {
   getAllPatients,
   getPatientById,
@@ -950,5 +962,6 @@ module.exports = {
   getSessionAnalytics,
   getSessionAlerts,
   getPatientClinicalNotes,
-  createClinicalNote
+  createClinicalNote,
+  getVrEventsHandler
 };

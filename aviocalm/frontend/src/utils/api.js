@@ -122,6 +122,10 @@ export const api = {
   getSessionAlerts: (sessionId) => {
     return apiRequest(`/patients/sessions/${sessionId}/alerts`, { method: 'GET' });
   },
+  // Fetch all persisted Unity VR events for a specific session
+  getVrEvents: (sessionId) => {
+    return apiRequest(`/patients/sessions/${sessionId}/vr-events`, { method: 'GET' });
+  },
 };
 
 export default api;

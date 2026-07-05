@@ -318,6 +318,52 @@ async function getPatientTreatmentHistory(patientId) {
     }
 }
 
+
+/**
+ * Returns the session_id of the current 'In Progress' session for a patient.
+ * Used as a DB fallback when the activeSessions in-memory map has no entry.
+ * @param {string} patientId - patient UUID
+ * @returns {Promise<string|null>}
+ */
+async function getActiveSessionForPatient(patientId) {
+    const result = await pool.query(
+        'SELECT id FROM sessions WHERE patient_id = $1 AND status = ' + "'In Progress'" + ' ORDER BY started_at DESC LIMIT 1',
+        [patientId]
+    );
+    return result.rows.length > 0 ? result.rows[0].id : null;
+}
+
+async function insertVrEvent(sessionId, tag, message) {
+    await pool.query(
+        'INSERT INTO vr_events (session_id, tag, message) VALUES ($1, $2, $3)',
+        [sessionId, tag, message]
+    );
+}
+
+/**
+ * Returns all VR events for a session, sorted chronologically.
+ * @param {string} sessionId
+ * @returns {Promise<Array>}
+ */
+async function getVrEventsBySession(sessionId) {
+    const result = await pool.query(
+        'SELECT id, session_id, timestamp, tag, message FROM vr_events WHERE session_id = $1 ORDER BY timestamp ASC',
+        [sessionId]
+    );
+    return result.rows;
+}
+
+/**
+ * Stamps the current timestamp on a device record when a session concludes.
+ * Called after SESSION_END and socket disconnect events.
+ * @param {string} deviceId - The UUID of the device to update
+ */
+async function updateDeviceLastSeen(deviceId) {
+    await pool.query(
+        'UPDATE devices SET last_seen = NOW() WHERE device_id = $1',
+        [deviceId]
+    );
+}
 module.exports = {
     initializeDatabase,
     insertAnxietyProfile,
@@ -334,5 +380,13 @@ module.exports = {
     endSession,
     calculateSessionHRV,
     completeSessionWithHRV,
-    getPatientTreatmentHistory
+    getPatientTreatmentHistory,
+
+    // Device tracking
+    updateDeviceLastSeen,
+
+    // VR event log
+    getActiveSessionForPatient,
+    insertVrEvent,
+    getVrEventsBySession
 };

@@ -3,6 +3,7 @@
 -- Port: 5433, Database: aviocalm
 
 -- Drop existing tables if they exist (order matters for foreign key dependencies)
+DROP TABLE IF EXISTS vr_events CASCADE;
 DROP TABLE IF EXISTS alerts CASCADE;
 DROP TABLE IF EXISTS scene_stress_scores CASCADE;
 DROP TABLE IF EXISTS anxiety_profiles CASCADE;
@@ -144,6 +145,17 @@ CREATE TABLE alerts (
     created_at       TIMESTAMP   DEFAULT CURRENT_TIMESTAMP
 );
 
+-- VR Events Table (Epic 7.x)
+-- Stores real Unity VR log events forwarded via the vr_system_log Socket.io event.
+-- Each row is one tagged Debug.Log message: tag e.g. '[User Action]', message is the rest.
+CREATE TABLE vr_events (
+    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id  UUID        NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    timestamp   TIMESTAMP   NOT NULL DEFAULT NOW(),
+    tag         VARCHAR(50) NOT NULL,
+    message     TEXT        NOT NULL
+);
+
 -- Devices Table (Epic 6.1)
 -- Manages individual hardware devices (VR headsets and smartwatches)
 CREATE TABLE devices (
@@ -196,6 +208,8 @@ CREATE INDEX idx_kits_watch_device ON kits(watch_device_id);
 CREATE INDEX idx_patient_assignments_patient ON patient_assignments(patient_id);
 CREATE INDEX idx_patient_assignments_kit ON patient_assignments(kit_id);
 CREATE INDEX idx_patient_assignments_assigned_at ON patient_assignments(assigned_at);
+CREATE INDEX idx_vr_events_session   ON vr_events (session_id);
+CREATE INDEX idx_vr_events_timestamp ON vr_events (timestamp);
 CREATE INDEX idx_alerts_patient    ON alerts(patient_id);
 CREATE INDEX idx_alerts_session    ON alerts(session_id);
 CREATE INDEX idx_alerts_is_read    ON alerts(is_read);

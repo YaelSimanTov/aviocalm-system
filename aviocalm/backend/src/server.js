@@ -6,7 +6,7 @@ const { Server } = require('socket.io');
 require('dotenv').config();
 
 // Database manager for saving IoT/VR data
-const { insertAnxietyProfile, initializeDatabase, completeSessionWithHRV, getPatientBaseline, savePatientBaseline, createNewSession } = require('./db/db-manager');
+const { insertAnxietyProfile, initializeDatabase, completeSessionWithHRV, getPatientBaseline, savePatientBaseline, createNewSession, updateDeviceLastSeen, insertVrEvent, getActiveSessionForPatient } = require('./db/db-manager');
 
 // Calibration logic for VR headset pre-flight sync
 const { processCalibration } = require('./sockets/calibrationHandler');
@@ -103,6 +103,10 @@ let currentDifficulty = LevelDiff.NONE;
 // Used to route incoming device streams to the correct patient session
 const activeSessions = {};
 
+// 3b. Per-session VR state tracker: sessionId -> { state, difficulty }
+// Kept in sync by vr_system_log; consumed by watch_vitals_update for anxiety_profiles
+const sessionVrState = {};
+
 // 4. Calibration accumulators: patient_uuid -> HR sample array
 // Populated by watch_vitals_update while a calibration window is open
 const activeCalibrations = {};
@@ -140,6 +144,7 @@ io.on('connection', (socket) => {
             const newSessionId = await createNewSession(patientId);
             // Store as { nationalId, sessionId } for compatibility with watch Channel 2
             activeSessions[patientId] = { nationalId: deviceInfo.national_id, sessionId: newSessionId };
+            socket.deviceId = payload.deviceId;
             console.log(`[SESSION] Started session ${newSessionId} for patient ${patientId}`);
         } catch (err) {
             console.error(`[SESSION START ERROR] ${err.message}`);
@@ -157,6 +162,12 @@ io.on('connection', (socket) => {
             if (currentSessionId) {
                 await finalizeSession(currentSessionId);
                 await completeSession(currentSessionId);
+                // Update last_seen for this device in the devices table
+                try {
+                    await updateDeviceLastSeen(payload.deviceId);
+                } catch (lsErr) {
+                    console.error(`[SESSION END] Failed to update last_seen for device ${payload.deviceId}: ${lsErr.message}`);
+                }
                 console.log(`[SESSION] Ended session ${currentSessionId} for patient ${patientId}`);
                 delete activeSessions[patientId];
                 delete latestPatientHR[patientId];
@@ -190,16 +201,38 @@ io.on('connection', (socket) => {
             io.emit('vr_status_change', true);
             console.log(`[VR LOG | Patient: ${patientId}] ${logMessage}`);
 
-            if (logMessage.includes("Flight state changed to:")) {
-                const extractedState = logMessage.split(": ")[1].trim();
-                if (Object.values(FlightState).includes(extractedState)) {
-                    currentVrState = extractedState;
+            // Extract the Unity tag (e.g. '[User Action]') and the message body
+            const TAG_PATTERN = /^(\[[^\]]+\])\s*(.*)/s;
+            const tagMatch = logMessage.match(TAG_PATTERN);
+            const vrTag     = tagMatch ? tagMatch[1] : '[Unknown]';
+            const vrMessage = tagMatch ? tagMatch[2].trim() : logMessage;
+
+            // Persist the event — try in-memory session map first, then fall back to DB
+            const sessionId = activeSessions[patientId]?.sessionId
+                ?? await getActiveSessionForPatient(patientId);
+            if (sessionId) {
+                try {
+                    await insertVrEvent(sessionId, vrTag, vrMessage);
+                } catch (dbErr) {
+                    console.error('[VR LOG] Failed to persist event for session ' + sessionId + ': ' + dbErr.message);
                 }
             }
-            else if (logMessage.includes("The Level Diffculty is")) {
-                const extractedDiff = logMessage.split("is ")[1].trim();
-                if (Object.values(LevelDiff).includes(extractedDiff)) {
-                    currentDifficulty = extractedDiff;
+
+            // Keep per-session VR state in sync for biometric pairing
+            if (sessionId) {
+                if (!sessionVrState[sessionId]) {
+                    sessionVrState[sessionId] = { state: FlightState.BOARDING, difficulty: LevelDiff.NONE };
+                }
+                if (vrTag === '[Flight Phase]' && vrMessage.includes('Phase changed to:')) {
+                    const extractedState = vrMessage.split('Phase changed to:')[1].trim();
+                    if (Object.values(FlightState).includes(extractedState)) {
+                        sessionVrState[sessionId].state = extractedState;
+                    }
+                } else if (vrTag === '[System Event]' && vrMessage.includes('Difficulty Level:')) {
+                    const extractedDiff = vrMessage.split('Difficulty Level:')[1].trim();
+                    if (Object.values(LevelDiff).includes(extractedDiff)) {
+                        sessionVrState[sessionId].difficulty = extractedDiff;
+                    }
                 }
             }
         } catch (err) {
@@ -298,6 +331,7 @@ io.on('connection', (socket) => {
                             socket.patientUuid = deviceInfo.patient_uuid;
                             socket.nationalId  = deviceInfo.national_id;
                             socket.deviceType  = deviceInfo.device_type;
+                            socket.deviceId    = currentDeviceId;
                             console.log(`[LAZY BIND] Device ${currentDeviceId} bound to patient: ${deviceInfo.national_id}`);
 
                             // Open a new session for this patient if one is not already active
@@ -350,8 +384,8 @@ io.on('connection', (socket) => {
                 patientId:      sessionData.nationalId,
                 sessionId:      sessionData.sessionId,
                 timestamp,
-                vrState:        currentVrState,
-                difficulty:     currentDifficulty,
+                vrState:        sessionVrState[sessionData.sessionId]?.state      ?? 'Unknown',
+                difficulty:     sessionVrState[sessionData.sessionId]?.difficulty ?? LevelDiff.NONE,
                 vitals:         { heartRate, stressScore, spo2, ibiData },
                 therapistAction: 'None'
             });
@@ -404,6 +438,14 @@ io.on('connection', (socket) => {
                     // Flush any open rule-engine breaches before closing the session
                     await finalizeSession(sessionData.sessionId);
                     await completeSession(sessionData.sessionId);
+                    // Update last_seen for this device in the devices table
+                    if (socket.deviceId) {
+                        try {
+                            await updateDeviceLastSeen(socket.deviceId);
+                        } catch (lsErr) {
+                            console.error(`[DISCONNECT] Failed to update last_seen for device ${socket.deviceId}: ${lsErr.message}`);
+                        }
+                    }
                     console.log(`[SESSION] Session ${sessionData.sessionId} completed on disconnect for patient ${socket.nationalId}`);
                 } catch (error) {
                     console.error(`[SESSION] Error completing session on disconnect:`, error);

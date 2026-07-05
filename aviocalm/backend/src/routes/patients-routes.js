@@ -13,7 +13,8 @@ const {
   getSessionAnalytics,
   getSessionAlerts,
   getPatientClinicalNotes,
-  createClinicalNote
+  createClinicalNote,
+  getVrEventsHandler
 } = require('../controllers/patients-controller');
 
 // All patient routes require authentication
@@ -48,6 +49,9 @@ router.get('/sessions/:sessionId/analytics', getSessionAnalytics);
 
 // GET /api/sessions/:sessionId/alerts - Get all alerts for a specific session
 router.get('/sessions/:sessionId/alerts', getSessionAlerts);
+
+// GET /api/patients/sessions/:sessionId/vr-events - Get all persisted VR events for a session
+router.get('/sessions/:sessionId/vr-events', getVrEventsHandler);
 
 // GET /api/patients/:id/notes - Get all clinical notes for a specific patient
 router.get('/:id/notes', getPatientClinicalNotes);

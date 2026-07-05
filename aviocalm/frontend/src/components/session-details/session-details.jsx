@@ -187,78 +187,66 @@ function AlertAnnotationDot({ cx, cy, alert, color, isHovered, onEnter, onLeave 
 
 /**
  * SessionEventTimeline — chronological event feed displayed alongside the LineChart.
- * Shows medical alerts (Safety, Panic, Statistical) and VR simulation events in a
- * single, time-sorted, scrollable list. Each item is color-coded by type.
+ * Fetches real Unity VR events from the DB and merges them with medical alerts.
+ * Each item is color-coded by Unity log tag or alert type.
  */
-function SessionEventTimeline({ sessionAlerts, chartData }) {
-  // Generate mock VR simulation events based on VR state transitions in chartData
-  const generateVrEvents = (data) => {
-    const events = [];
-    let lastState = null;
+function SessionEventTimeline({ sessionId, sessionAlerts }) {
+  const [vrEvents, setVrEvents] = useState([]);
 
-    data.forEach((d, i) => {
-      const currentState = d.vrState;
-      const stateName = STAGE_NAMES[currentState] || currentState;
-
-      // Detect VR state changes and log them as simulation events
-      if (currentState !== lastState && currentState) {
-        events.push({
-          id: `vr-${i}`,
-          type: 'VR',
-          alertType: 'Simulation',
-          description: `Phase changed to ${stateName}`,
-          timestamp: d.timestamp,
-        });
-        lastState = currentState;
-      }
-
-      // Add a few contextual mock events at key phases
-      if (currentState === 'TakeOffState' && i === data.findIndex(p => p.vrState === 'TakeOffState')) {
-        events.push({
-          id: `vr-seatbelt-${i}`,
-          type: 'VR',
-          alertType: 'Simulation',
-          description: 'Seatbelt fastened',
-          timestamp: d.timestamp,
-        });
-      }
-      if (currentState === 'LandingState' && i === data.findIndex(p => p.vrState === 'LandingState')) {
-        events.push({
-          id: `vr-landing-${i}`,
-          type: 'VR',
-          alertType: 'Simulation',
-          description: 'Landing gear deployed',
-          timestamp: d.timestamp,
-        });
+  // Fetch persisted VR events for this session from the backend
+  useEffect(() => {
+    if (!sessionId) return;
+    api.getVrEvents(sessionId).then((result) => {
+      if (result.success && Array.isArray(result.data)) {
+        setVrEvents(result.data);
       }
     });
+  }, [sessionId]);
 
-    return events;
-  };
-
-  // Convert medical alerts to event format
+  // Convert medical alerts to unified event format
   const alertEvents = sessionAlerts.map((a) => ({
     id: a.id,
     type: 'Alert',
-    alertType: a.alert_type,
+    tag: a.alert_type,
     description: a.description,
     timestamp: a.timestamp,
   }));
 
-  // Combine alerts and VR events, sort by timestamp
-  const allEvents = [...alertEvents, ...generateVrEvents(chartData)].sort((a, b) => {
+  // Convert DB VR events to unified event format
+  const vrEventItems = vrEvents.map((e) => ({
+    id: e.id,
+    type: 'VR',
+    tag: e.tag,
+    description: e.message,
+    timestamp: e.timestamp,
+  }));
+
+  // Merge and sort chronologically
+  const allEvents = [...alertEvents, ...vrEventItems].sort((a, b) => {
     const timeA = new Date(a.timestamp.endsWith('Z') ? a.timestamp : `${a.timestamp}Z`).getTime();
     const timeB = new Date(b.timestamp.endsWith('Z') ? b.timestamp : `${b.timestamp}Z`).getTime();
     return timeA - timeB;
   });
 
-  // Get border color class based on event type
-  const getBorderColor = (type, alertType) => {
-    if (type === 'VR') return 'border-slate-400';
-    if (alertType === 'Safety') return 'border-red-500';
-    if (alertType === 'Panic') return 'border-teal-500';
-    if (alertType === 'Statistical') return 'border-amber-500';
-    return 'border-slate-400';
+  // Map Unity log tags and alert types to left-border Tailwind color classes
+  const getBorderColor = (type, tag) => {
+    if (type === 'Alert') {
+      if (tag === 'Safety')      return 'border-red-500';
+      if (tag === 'Panic')       return 'border-teal-500';
+      if (tag === 'Statistical') return 'border-amber-500';
+      return 'border-slate-400';
+    }
+    if (tag === '[User Action]')  return 'border-blue-500';
+    if (tag === '[Flight Phase]') return 'border-slate-400';
+    if (tag === '[Flight Event]') return 'border-indigo-500';
+    if (tag === '[System Event]') return 'border-gray-400';
+    return 'border-slate-300';
+  };
+
+  // Human-readable label shown below the event description
+  const getLabel = (type, tag) => {
+    if (type === 'Alert') return `${tag} Alert`;
+    return tag ?? 'VR Event';
   };
 
   // Format timestamp for display (e.g., 08:24 AM)
@@ -284,17 +272,12 @@ function SessionEventTimeline({ sessionAlerts, chartData }) {
           allEvents.map((event) => (
             <div
               key={event.id}
-              className={`bg-white rounded p-2.5 shadow-sm border-l-4 ${getBorderColor(
-                event.type,
-                event.alertType
-              )}`}
+              className={`bg-white rounded p-2.5 shadow-sm border-l-4 ${getBorderColor(event.type, event.tag)}`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-gray-800 truncate">{event.description}</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {event.type === 'Alert' ? event.alertType : 'VR Event'}
-                  </p>
+                  <p className="text-xs font-medium text-gray-800 break-words leading-relaxed">{event.description}</p>
+                  <p className="text-xs text-gray-500 mt-1">{getLabel(event.type, event.tag)}</p>
                 </div>
                 <p className="text-xs text-gray-400 font-mono whitespace-nowrap">{formatTime(event.timestamp)}</p>
               </div>
@@ -791,7 +774,7 @@ export function SessionDetails() {
 
             {/* Sidebar area — 28% width */}
             <div className="w-[28%]">
-              <SessionEventTimeline sessionAlerts={sessionAlerts} chartData={chartData} />
+              <SessionEventTimeline sessionId={sessionId} sessionAlerts={sessionAlerts} />
             </div>
           </div>
         </div>
