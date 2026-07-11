@@ -118,6 +118,7 @@ class AssignmentService {
                 pa.assignment_id,
                 pa.patient_id,
                 pa.kit_id,
+                k.kit_number,
                 pa.assigned_at,
                 pa.unassigned_at,
                 k.vr_device_id,

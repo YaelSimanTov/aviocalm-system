@@ -235,7 +235,7 @@ export const InventoryDashboard = () => {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Kit ID</th>
+                  <th>Kit</th>
                   <th>VR Device</th>
                   <th>VR Status</th>
                   <th>Watch Device</th>
@@ -253,7 +253,7 @@ export const InventoryDashboard = () => {
                 ) : (
                   kits.map((kit) => (
                     <tr key={kit.kit_id}>
-                      <td className="device-id">{kit.kit_id.slice(0, 8)}...</td>
+                      <td className="device-id">Kit #{kit.kit_number}</td>
                       <td>{kit.vr_device_id.slice(0, 8)}...</td>
                       <td>
                         <StatusBadge status={kit.vr_status} />

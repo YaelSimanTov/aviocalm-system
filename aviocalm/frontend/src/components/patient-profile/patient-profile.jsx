@@ -743,8 +743,8 @@ export const PatientProfile = () => {
                   <div className="patient-profile__equipment-card patient-profile__equipment-card--assigned">
                     <div className="patient-profile__equipment-details">
                       <div className="patient-profile__equipment-item">
-                        <span className="patient-profile__equipment-label">Kit ID:</span>
-                        <span className="patient-profile__equipment-value">#{currentAssignment.kit_id?.slice(0, 8)}...</span>
+                        <span className="patient-profile__equipment-label">Kit:</span>
+                        <span className="patient-profile__equipment-value">Kit #{currentAssignment.kit_number}</span>
                       </div>
                       <div className="patient-profile__equipment-item">
                         <span className="patient-profile__equipment-label">VR Device ID:</span>
@@ -933,7 +933,7 @@ export const PatientProfile = () => {
                     <option value="">-- Select a kit --</option>
                     {availableKits.map((kit) => (
                       <option key={kit.kit_id} value={kit.kit_id}>
-                        Kit #{kit.kit_id.slice(0, 8)}... (VR: {kit.vr_device_id.slice(0, 8)}..., Watch: {kit.watch_device_id.slice(0, 8)}...)
+                        Kit #{kit.kit_number} — {kit.vr_device_id}, {kit.watch_device_id}
                       </option>
                     ))}
                   </select>

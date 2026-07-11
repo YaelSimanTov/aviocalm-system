@@ -568,7 +568,7 @@ export const AddPatientForm = () => {
                   ) : (
                     availableKits.map((kit) => (
                       <option key={kit.kit_id} value={kit.kit_id}>
-                        Kit #{kit.kit_id.slice(0, 8)}... (VR: {kit.vr_device_id.slice(0, 8)}..., Watch: {kit.watch_device_id.slice(0, 8)}...)
+                        Kit #{kit.kit_number} — {kit.vr_device_id}, {kit.watch_device_id}
                       </option>
                     ))
                   )}

@@ -128,6 +128,7 @@ class InventoryService {
         const query = `
             SELECT 
                 k.kit_id,
+                k.kit_number,
                 k.vr_device_id,
                 vr.device_type as vr_device_type,
                 vr.status as vr_status,
@@ -137,7 +138,7 @@ class InventoryService {
             FROM kits k
             LEFT JOIN devices vr ON k.vr_device_id = vr.device_id
             LEFT JOIN devices w ON k.watch_device_id = w.device_id
-            ORDER BY k.kit_id
+            ORDER BY k.kit_number
         `;
 
         const result = await pool.query(query);
@@ -154,6 +155,7 @@ class InventoryService {
         const query = `
             SELECT 
                 k.kit_id,
+                k.kit_number,
                 k.vr_device_id,
                 vr.device_type as vr_device_type,
                 vr.status as vr_status,
@@ -167,7 +169,7 @@ class InventoryService {
             WHERE pa.assignment_id IS NULL
             AND vr.status = 'Active'
             AND w.status = 'Active'
-            ORDER BY k.kit_id
+            ORDER BY k.kit_number
         `;
 
         const result = await pool.query(query);
