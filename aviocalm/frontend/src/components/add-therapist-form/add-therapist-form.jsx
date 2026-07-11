@@ -10,6 +10,8 @@ const AddTherapistForm = () => {
     username: "",
     firstName: "",
     lastName: "",
+    email: "",
+    phoneNumber: "",
   });
 
   const [loading, setLoading] = useState(false);
@@ -32,6 +34,37 @@ const AddTherapistForm = () => {
       return;
     }
 
+    if (!form.firstName.trim()) {
+      setError("First name is required.");
+      return;
+    }
+
+    if (!form.lastName.trim()) {
+      setError("Last name is required.");
+      return;
+    }
+
+    // Validate email format when provided
+    if (form.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(form.email.trim())) {
+        setError("Please enter a valid email address.");
+        return;
+      }
+    }
+
+    // Validate phone number when provided:
+    // strip everything except digits and a leading '+', then check length 9–15
+    if (form.phoneNumber.trim()) {
+      const leading = form.phoneNumber.startsWith('+') ? '+' : '';
+      const digits  = form.phoneNumber.replace(/\D/g, '');
+      const cleaned = leading + digits;
+      if (digits.length < 9 || digits.length > 15) {
+        setError("Phone number must contain 9–15 digits (a leading + is allowed).");
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
@@ -50,7 +83,7 @@ const AddTherapistForm = () => {
       if (response.ok) {
         setSuccessData(data);
         setIsModalOpen(true);
-        setForm({ username: "", firstName: "", lastName: "" });
+        setForm({ username: "", firstName: "", lastName: "", email: "", phoneNumber: "" });
       } else {
         setError(data.message || "Error creating therapist");
       }
@@ -82,22 +115,21 @@ const AddTherapistForm = () => {
         <h2 className="add-therapist-card__title">Create New Therapist</h2>
 
         {error && (
-          <div className="bg-red-50 border-l-4 border-red-500 p-3 mb-4 text-red-700 text-sm">
+          <div className="bg-red-50 border-l-4 border-red-500 text-red-700 text-sm p-3 mb-5 rounded-r-lg">
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="add-therapist-form__group">
             <label className="add-therapist-form__label">Username</label>
             <input
               type="text"
               name="username"
-              className={`add-therapist-form__input ${error ? 'border-red-500' : ''}`}
+              className="add-therapist-form__input"
               placeholder="Enter username"
               value={form.username}
               onChange={handleChange}
-              required
             />
           </div>
 
@@ -110,7 +142,6 @@ const AddTherapistForm = () => {
               placeholder="Enter first name"
               value={form.firstName}
               onChange={handleChange}
-              required
             />
           </div>
 
@@ -123,7 +154,36 @@ const AddTherapistForm = () => {
               placeholder="Enter last name"
               value={form.lastName}
               onChange={handleChange}
-              required
+            />
+          </div>
+
+          <div className="add-therapist-form__group">
+            <label className="add-therapist-form__label">
+              Email <span className="text-slate-400 text-xs font-normal">(optional)</span>
+            </label>
+            <input
+              type="email"
+              name="email"
+              className="add-therapist-form__input"
+              placeholder="therapist@example.com"
+              value={form.email}
+              onChange={handleChange}
+              autoComplete="email"
+            />
+          </div>
+
+          <div className="add-therapist-form__group">
+            <label className="add-therapist-form__label">
+              Phone Number <span className="text-slate-400 text-xs font-normal">(optional)</span>
+            </label>
+            <input
+              type="tel"
+              name="phoneNumber"
+              className="add-therapist-form__input"
+              placeholder="+972501234567"
+              value={form.phoneNumber}
+              onChange={handleChange}
+              autoComplete="tel"
             />
           </div>
 

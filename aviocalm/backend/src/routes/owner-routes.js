@@ -3,6 +3,7 @@ const bcrypt = require('bcrypt');
 const router = express.Router();
 const pool = require('../config/db');
 const { authenticateToken, requireRole } = require('../middleware/auth-middleware');
+const { createTherapistSchema, updateTherapistSchema, validate } = require('../middleware/user-validation');
 
 // All owner routes require authentication and Owner role
 router.use(authenticateToken);
@@ -23,7 +24,7 @@ router.get('/dashboard', (req, res) => {
 router.get('/therapists', async (req, res) => {
     try {
         const result = await pool.query(
-            `SELECT user_id, username, first_name, last_name, role, is_first_login
+            `SELECT user_id, username, first_name, last_name, role, is_first_login, email, phone_number
              FROM users
              WHERE role = $1
              ORDER BY username ASC`,
@@ -44,17 +45,12 @@ router.get('/therapists', async (req, res) => {
 });
 
 // POST /api/owner/create-therapist
-router.post('/create-therapist', async (req, res) => {
+router.post('/create-therapist', validate(createTherapistSchema), async (req, res) => {
     try {
-        const { username, firstName, lastName } = req.body;
+        // req.body is already validated and sanitized (email lowercased, phone stripped)
+        const { username, firstName, lastName, email, phoneNumber } = req.body;
 
-        if (!username || !firstName || !lastName) {
-            return res.status(400).json({
-                success: false,
-                message: 'Username, first name and last name are required'
-            });
-        }
-
+        // Check for duplicate username
         const existingUser = await pool.query(
             'SELECT user_id FROM users WHERE username = $1',
             [username]
@@ -67,14 +63,28 @@ router.post('/create-therapist', async (req, res) => {
             });
         }
 
+        // Check for duplicate email (when provided)
+        if (email) {
+            const existingEmail = await pool.query(
+                'SELECT user_id FROM users WHERE email = $1',
+                [email]
+            );
+            if (existingEmail.rows.length > 0) {
+                return res.status(409).json({
+                    success: false,
+                    message: 'A user with that email address already exists.'
+                });
+            }
+        }
+
         const temporaryPassword = `${username}123!`;
         const passwordHash = await bcrypt.hash(temporaryPassword, 10);
 
         const result = await pool.query(
-            `INSERT INTO users 
-             (username, password_hash, salt, role, is_first_login, first_name, last_name)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             RETURNING user_id, username, first_name, last_name, role, is_first_login`,
+            `INSERT INTO users
+             (username, password_hash, salt, role, is_first_login, first_name, last_name, email, phone_number)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             RETURNING user_id, username, first_name, last_name, role, is_first_login, email, phone_number`,
             [
                 username,
                 passwordHash,
@@ -82,7 +92,9 @@ router.post('/create-therapist', async (req, res) => {
                 'Therapist',
                 true,
                 firstName,
-                lastName
+                lastName,
+                email   || null,
+                phoneNumber || null,
             ]
         );
 
@@ -158,25 +170,37 @@ router.delete('/therapists/:username', async (req, res) => {
 });
 
 // PUT /api/owner/therapists/:username
-router.put('/therapists/:username', async (req, res) => {
+router.put('/therapists/:username', validate(updateTherapistSchema), async (req, res) => {
     try {
         const { username } = req.params;
-        const firstName = req.body.firstName || req.body.first_name;
-        const lastName = req.body.lastName || req.body.last_name;
+        // Accept both camelCase (new) and snake_case (legacy) name keys
+        const firstName   = req.body.firstName   || req.body.first_name;
+        const lastName    = req.body.lastName    || req.body.last_name;
+        const { email, phoneNumber } = req.body;
 
-        if (!firstName || !lastName) {
-            return res.status(400).json({
-                success: false,
-                message: 'First name and last name are required'
-            });
+        // Check for duplicate email on another account (when provided)
+        if (email) {
+            const existingEmail = await pool.query(
+                'SELECT user_id FROM users WHERE email = $1 AND username != $2',
+                [email, username]
+            );
+            if (existingEmail.rows.length > 0) {
+                return res.status(409).json({
+                    success: false,
+                    message: 'A user with that email address already exists.'
+                });
+            }
         }
 
         const result = await pool.query(
             `UPDATE users
-             SET first_name = $1, last_name = $2
-             WHERE username = $3 AND role = $4
-             RETURNING user_id, username, first_name, last_name, role, is_first_login`,
-            [firstName, lastName, username, 'Therapist']
+             SET first_name   = $1,
+                 last_name    = $2,
+                 email        = $3,
+                 phone_number = $4
+             WHERE username = $5 AND role = $6
+             RETURNING user_id, username, first_name, last_name, role, is_first_login, email, phone_number`,
+            [firstName, lastName, email || null, phoneNumber || null, username, 'Therapist']
         );
 
         if (result.rows.length === 0) {
@@ -192,6 +216,14 @@ router.put('/therapists/:username', async (req, res) => {
             therapist: result.rows[0]
         });
     } catch (error) {
+        // Safety net: catch PostgreSQL unique-constraint violation that could slip through
+        // the pre-check above in the rare case of a concurrent request (error code 23505).
+        if (error.code === '23505') {
+            return res.status(409).json({
+                success: false,
+                message: 'This email is already in use by another therapist.'
+            });
+        }
         console.error('[OWNER] Error updating therapist:', error);
         res.status(500).json({
             success: false,

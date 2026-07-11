@@ -37,11 +37,16 @@ const TherapistList = () => {
     finally { setIsLoading(false); }
   };
 
-  const filteredTherapists = (therapists || []).filter(t =>
-    (t.username || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (t.first_name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (t.last_name || "").toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredTherapists = (therapists || []).filter(t => {
+    const term = searchTerm.toLowerCase();
+    return (
+      (t.username     || '').toLowerCase().includes(term) ||
+      (t.first_name   || '').toLowerCase().includes(term) ||
+      (t.last_name    || '').toLowerCase().includes(term) ||
+      (t.email        || '').toLowerCase().includes(term) ||
+      (t.phone_number || '').includes(term)
+    );
+  });
 
   const confirmDelete = async () => {
     if (!therapistToDelete) return;
@@ -90,11 +95,17 @@ const TherapistList = () => {
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify(updatedData)
       });
+      const data = await response.json();
       if (response.ok) {
         setIsEditOpen(false);
         fetchTherapists();
+        return { success: true };
       }
-    } catch (error) { alert("Update failed"); }
+      // Return the server error so the modal can display it inline
+      return { success: false, error: data.message || data.error || 'Update failed. Please try again.' };
+    } catch (err) {
+      return { success: false, error: 'Network error. Please try again.' };
+    }
   };
 
   if (isLoading) return <div className="p-8">Loading...</div>;
@@ -129,6 +140,8 @@ const TherapistList = () => {
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Username</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Full Name</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Email</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Phone</th>
                 <th className="px-6 py-4 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -137,6 +150,14 @@ const TherapistList = () => {
                 <tr key={t.username} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-6 py-4 text-sm text-blue-600 font-medium">{t.username}</td>
                   <td className="px-6 py-4 text-sm text-slate-700">{t.first_name} {t.last_name}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">
+                    {t.email
+                      ? <a href={`mailto:${t.email}`} className="hover:text-blue-600 hover:underline transition-colors">{t.email}</a>
+                      : <span className="text-slate-300 text-xs">—</span>}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-600">
+                    {t.phone_number || <span className="text-slate-300 text-xs">—</span>}
+                  </td>
                   <td className="px-6 py-4 text-center relative">
                     <button onClick={() => setOpenMenuId(openMenuId === t.username ? null : t.username)} className="p-2 text-slate-400">
                       <MoreVertical size={18} />
