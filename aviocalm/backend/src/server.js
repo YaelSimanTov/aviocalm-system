@@ -107,6 +107,31 @@ const activeSessions = {};
 // Kept in sync by vr_system_log; consumed by watch_vitals_update for anxiety_profiles
 const sessionVrState = {};
 
+// In-memory throttle map: deviceId -> last DB write timestamp (ms)
+// Limits last_seen DB updates to once per 30 seconds per device so high-frequency
+// socket events (watch_vitals_update, vr_system_log) do not spam the database.
+const lastSeenThrottle = {};
+const LAST_SEEN_THROTTLE_MS = 30 * 1000;
+
+/**
+ * Writes the current timestamp to devices.last_seen for the given device,
+ * but at most once every LAST_SEEN_THROTTLE_MS milliseconds.
+ * Fire-and-forget — errors are logged but never propagated to the caller.
+ * @param {string} deviceId
+ */
+async function throttledUpdateLastSeen(deviceId) {
+    const now = Date.now();
+    if (lastSeenThrottle[deviceId] && now - lastSeenThrottle[deviceId] < LAST_SEEN_THROTTLE_MS) {
+        return; // Skip — already updated within the throttle window
+    }
+    lastSeenThrottle[deviceId] = now;
+    try {
+        await updateDeviceLastSeen(deviceId);
+    } catch (err) {
+        console.error(`[LAST_SEEN] Failed to update device ${deviceId}: ${err.message}`);
+    }
+}
+
 // 4. Calibration accumulators: patient_uuid -> HR sample array
 // Populated by watch_vitals_update while a calibration window is open
 const activeCalibrations = {};
@@ -197,6 +222,9 @@ io.on('connection', (socket) => {
                 console.log(`[UNASSIGNED VR LOG] Device ${deviceId}: ${logMessage}`);
                 return;
             }
+
+            // Update last_seen for this VR device (throttled to once per 30 seconds)
+            throttledUpdateLastSeen(deviceId);
 
             io.emit('vr_status_change', true);
             console.log(`[VR LOG | Patient: ${patientId}] ${logMessage}`);
@@ -366,6 +394,11 @@ io.on('connection', (socket) => {
             if (!socket.patientUuid) {
                 console.warn(`[Unassigned Stream] watch_vitals_update from unresolved socket ${socket.id} — skipping DB insert`);
                 return;
+            }
+
+            // Update last_seen for this Watch device (throttled to once per 30 seconds)
+            if (socket.deviceId) {
+                throttledUpdateLastSeen(socket.deviceId);
             }
 
             // Look up the active session for this patient from the in-memory tracker

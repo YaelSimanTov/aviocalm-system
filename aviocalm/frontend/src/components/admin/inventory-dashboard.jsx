@@ -91,26 +91,15 @@ export const InventoryDashboard = () => {
   };
 
   /**
-   * Converts a raw last_seen timestamp into a human-readable relative string.
+   * Formats a last_seen timestamp as an exact date and time string.
    * Returns "Never" when the value is null/undefined.
-   * Examples: "just now", "5 minutes ago", "3 hours ago", "2 days ago"
+   * Output format: DD/MM/YYYY HH:mm
    */
   const formatLastSeen = (timestamp) => {
     if (!timestamp) return 'Never';
-
-    const diff = Date.now() - new Date(timestamp).getTime();
-    const seconds = Math.floor(diff / 1000);
-
-    if (seconds < 60)  return 'just now';
-
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60)  return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
-
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24)    return `${hours} hour${hours === 1 ? '' : 's'} ago`;
-
-    const days = Math.floor(hours / 24);
-    return `${days} day${days === 1 ? '' : 's'} ago`;
+    const d   = new Date(timestamp);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
   /**
@@ -130,11 +119,13 @@ export const InventoryDashboard = () => {
         setError('Failed to update device status');
         fetchInventoryData(); // Revert by re-fetching
       } else {
-        // Refresh kits so VR/Watch status columns reflect the new device status
-        const kitsResponse = await api.get('/v1/kits');
-        if (kitsResponse.success && kitsResponse.data) {
-          setKits(kitsResponse.data);
-        }
+        // Refetch both lists so the status change is reflected in both tables
+        const [devRes, kitsRes] = await Promise.all([
+          api.get('/v1/devices'),
+          api.get('/v1/kits'),
+        ]);
+        if (devRes.success  && devRes.data)  setDevices(devRes.data);
+        if (kitsRes.success && kitsRes.data) setKits(kitsRes.data);
       }
     } catch (err) {
       console.error('Error updating device status:', err);

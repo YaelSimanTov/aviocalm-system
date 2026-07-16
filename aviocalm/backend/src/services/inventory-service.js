@@ -136,8 +136,8 @@ class InventoryService {
                 w.device_type as watch_device_type,
                 w.status as watch_status
             FROM kits k
-            LEFT JOIN devices vr ON k.vr_device_id = vr.device_id
-            LEFT JOIN devices w ON k.watch_device_id = w.device_id
+            JOIN devices vr ON k.vr_device_id = vr.device_id
+            JOIN devices w ON k.watch_device_id = w.device_id
             ORDER BY k.kit_number
         `;
 

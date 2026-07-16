@@ -301,8 +301,8 @@ export function SessionDetails() {
   const [analyticsError, setAnalyticsError]     = useState(null);
   const [sessionAlerts, setSessionAlerts]       = useState([]);
   const [hoveredAlertId, setHoveredAlertId]     = useState(null);
-  // Session-level statistics derived from real DB data (populated by fetchAlerts)
-  const [sessionMeta, setSessionMeta]           = useState({ baseline_hr: null, total_points: 0, window_count: 0 });
+  // baseline_hr is the only field still sourced from the alerts endpoint
+  const [sessionMeta, setSessionMeta]           = useState({ baseline_hr: null });
 
   // Session object forwarded by TreatmentHistory via route state.
   // Used for header date and HRV RMSSD card before analytics data arrives.
@@ -333,14 +333,9 @@ export function SessionDetails() {
 
   const fetchAlerts = async () => {
     const result = await api.getSessionAlerts(sessionId);
-    // The endpoint now returns an object, not a plain array
     if (result.success && result.data) {
       setSessionAlerts(result.data.alerts ?? []);
-      setSessionMeta({
-        baseline_hr:  result.data.baseline_hr  ?? null,
-        total_points: result.data.total_points ?? 0,
-        window_count: result.data.window_count ?? 0,
-      });
+      setSessionMeta({ baseline_hr: result.data.baseline_hr ?? null });
     }
   };
 
@@ -359,36 +354,23 @@ export function SessionDetails() {
     ?? analyticsData?.timeSeriesData?.[0]?.timestamp
     ?? null;
 
-  // ── KPI cards (computed once analyticsData is loaded) ──────────────────────
+  // ── KPI cards — values read from pre-computed columns in the sessions table ──
 
   const kpiCards = (() => {
-    if (!analyticsData?.timeSeriesData) return [];
-    const ts = analyticsData.timeSeriesData;
-
-    const avgHR = ts.length > 0
-      ? Math.round(ts.reduce((s, p) => s + p.avgHeartRate, 0) / ts.length)
-      : null;
-
-    const validSpo2 = ts.filter((p) => p.avgSpo2 != null && p.avgSpo2 > 0);
-    const avgSpo2   = validSpo2.length > 0
-      ? Math.round(validSpo2.reduce((s, p) => s + p.avgSpo2, 0) / validSpo2.length)
-      : null;
-
-    const avgStress = ts.length > 0
-      ? (ts.reduce((s, p) => s + (p.avgStressScore || 0), 0) / ts.length).toFixed(1)
-      : null;
+    const kpis = analyticsData?.precomputedKPIs;
+    if (!kpis) return [];
 
     const hrv = sessionNavState?.overall_hrv_rmssd ?? null;
 
     return [
-      { label: 'Avg Heart Rate',  value: avgHR     !== null ? String(avgHR)    : 'N/A', unit: avgHR !== null ? 'BPM' : null, Icon: Heart,    iconColor: 'text-blue-600',    iconBg: 'bg-blue-50'    },
-      { label: 'Avg SpO₂',        value: avgSpo2   !== null ? String(avgSpo2)  : 'N/A', unit: avgSpo2 !== null ? '%' : null,  Icon: Wind,     iconColor: 'text-teal-600',    iconBg: 'bg-teal-50'    },
-      { label: 'Avg Stress Score', value: avgStress !== null ? avgStress        : 'N/A', unit: avgStress !== null ? '/ 100' : null, Icon: TrendingUp, iconColor: 'text-purple-600', iconBg: 'bg-purple-50' },
-      { label: 'HRV RMSSD',        value: hrv       !== null ? String(hrv)      : 'N/A', unit: hrv !== null ? 'ms' : null,    Icon: Activity, iconColor: 'text-emerald-600', iconBg: 'bg-emerald-50' },
+      { label: 'Avg Heart Rate',   value: kpis.avg_heart_rate   != null ? String(kpis.avg_heart_rate)                      : 'N/A', unit: kpis.avg_heart_rate   != null ? 'BPM'   : null, Icon: Heart,      iconColor: 'text-blue-600',    iconBg: 'bg-blue-50'    },
+      { label: 'Avg SpO₂',         value: kpis.avg_spo2         != null ? String(kpis.avg_spo2)                            : 'N/A', unit: kpis.avg_spo2         != null ? '%'     : null, Icon: Wind,       iconColor: 'text-teal-600',    iconBg: 'bg-teal-50'    },
+      { label: 'Avg Stress Score',  value: kpis.avg_stress_score != null ? kpis.avg_stress_score.toFixed(1)                 : 'N/A', unit: kpis.avg_stress_score != null ? '/ 100' : null, Icon: TrendingUp, iconColor: 'text-purple-600', iconBg: 'bg-purple-50'  },
+      { label: 'HRV RMSSD',         value: hrv                  != null ? String(hrv)                                      : 'N/A', unit: hrv                   != null ? 'ms'    : null, Icon: Activity,   iconColor: 'text-emerald-600', iconBg: 'bg-emerald-50' },
     ];
   })();
 
-  // ── Pie chart data ──────────────────────────────────────────────────────────
+  // ── Pie chart data — percentages from pre-computed sessions columns ──────────
 
   const pieData = analyticsData?.timeInRangeDistribution
     ? [
@@ -397,6 +379,11 @@ export function SessionDetails() {
         { name: 'Panic',    value: analyticsData.timeInRangeDistribution.panic,     color: COLORS.PANIC    },
       ]
     : [];
+
+  // ── Session volume meta (total_data_points sourced from sessions table KPIs) ─
+
+  const totalDataPoints = analyticsData?.precomputedKPIs?.total_data_points ?? 0;
+  const windowCount     = Math.floor(totalDataPoints / 3);
 
   // ── Loading state ───────────────────────────────────────────────────────────
 
@@ -488,11 +475,11 @@ export function SessionDetails() {
         </div>
 
         {/* Session volume meta-cards — data-level stats, visually lighter than clinical KPIs */}
-        {(sessionMeta.total_points > 0 || sessionMeta.window_count > 0) && (
+        {(totalDataPoints > 0 || windowCount > 0) && (
           <div className="grid grid-cols-2 gap-4">
             {[
-              { label: 'Total Data Points', value: sessionMeta.total_points, Icon: Database },
-              { label: 'Time Windows',       value: sessionMeta.window_count, Icon: BarChart2 },
+              { label: 'Total Data Points', value: totalDataPoints, Icon: Database },
+              { label: 'Time Windows',       value: windowCount,     Icon: BarChart2 },
             ].map(({ label, value, Icon }) => (
               <div
                 key={label}

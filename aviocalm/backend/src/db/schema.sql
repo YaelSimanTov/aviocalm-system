@@ -56,7 +56,9 @@ CREATE TABLE patients (
 );
 
 -- Sessions Table (New Epic 2.3 & 3.1)
--- Manages concurrent clinic sessions and historical treatment data
+-- Manages concurrent clinic sessions and historical treatment data.
+-- KPI columns (avg_heart_rate … total_data_points) are computed once at session
+-- close and stored here, avoiding repeated aggregation on every page load.
 CREATE TABLE sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     patient_id UUID NOT NULL REFERENCES patients(id),
@@ -65,7 +67,14 @@ CREATE TABLE sessions (
     duration_minutes INTEGER,
     overall_hrv_rmssd DECIMAL(5,2),
     status VARCHAR(20) DEFAULT 'In Progress' CHECK (status IN ('In Progress', 'Completed', 'Halted')),
-    is_reviewed BOOLEAN DEFAULT false
+    is_reviewed BOOLEAN DEFAULT false,
+    avg_heart_rate        INTEGER,
+    avg_spo2              INTEGER,
+    avg_stress_score      DECIMAL(5,2),
+    time_relaxed_percent  INTEGER,
+    time_moderate_percent INTEGER,
+    time_panic_percent    INTEGER,
+    total_data_points     INTEGER
 );
 
 -- Anxiety Profiles Table (Epic 3.1)

@@ -278,11 +278,92 @@ async function completeSessionWithHRV(sessionId, completionData = {}) {
         };
         
         await updateSession(sessionId, sessionUpdateData);
+
+        // Compute and persist KPI aggregates while anxiety_profiles data is still hot
+        await computeAndSaveSessionKPIs(sessionId);
+
         console.log(`[DB] Session ${sessionId} completed successfully with HRV: ${hrvScore}ms`);
         return true;
     } catch (error) {
         console.error('[DB ERROR] Failed to complete session with HRV:', error);
         return false;
+    }
+}
+
+/**
+ * Reads all anxiety_profiles rows for a completed session and writes
+ * pre-computed KPI aggregates into the sessions table.
+ * This runs once at session close so the analytics endpoint never needs
+ * to re-aggregate raw data on page load.
+ * @param {string} sessionId
+ */
+async function computeAndSaveSessionKPIs(sessionId) {
+    try {
+        const { rows } = await pool.query(
+            `SELECT recorded_at, heart_rate, stress_score, spo2
+             FROM anxiety_profiles
+             WHERE session_id = $1
+             ORDER BY recorded_at ASC`,
+            [sessionId]
+        );
+
+        if (rows.length === 0) {
+            console.warn(`[DB] No anxiety_profiles for session ${sessionId}, skipping KPI save`);
+            return;
+        }
+
+        const total = rows.length;
+
+        // Simple averages over all raw data points
+        const sumHR     = rows.reduce((s, r) => s + (r.heart_rate   || 0), 0);
+        const validSpo2 = rows.filter(r => r.spo2 != null && r.spo2 > 0);
+        const sumSpo2   = validSpo2.reduce((s, r) => s + r.spo2, 0);
+        const sumStress = rows.reduce((s, r) => s + (r.stress_score || 0), 0);
+
+        const avgHR     = Math.round(sumHR / total);
+        const avgSpo2   = validSpo2.length > 0 ? Math.round(sumSpo2 / validSpo2.length) : null;
+        const avgStress = parseFloat((sumStress / total).toFixed(2));
+
+        // Time-in-range percentages using the same thresholds as the original
+        // calculateTimeInRange: stress < 40 = Relaxed, 40-75 = Moderate, > 75 = Panic
+        let relaxedMs = 0;
+        let moderateMs = 0;
+        let panicMs = 0;
+
+        for (let i = 0; i < rows.length - 1; i++) {
+            const stress = rows[i].stress_score || 0;
+            const dt = new Date(rows[i + 1].recorded_at).getTime()
+                     - new Date(rows[i].recorded_at).getTime();
+            if (stress < 40)       relaxedMs  += dt;
+            else if (stress <= 75) moderateMs += dt;
+            else                   panicMs    += dt;
+        }
+
+        const totalMs     = relaxedMs + moderateMs + panicMs;
+        const relaxedPct  = totalMs > 0 ? Math.round((relaxedMs  / totalMs) * 100) : 0;
+        const moderatePct = totalMs > 0 ? Math.round((moderateMs / totalMs) * 100) : 0;
+        const panicPct    = totalMs > 0 ? Math.round((panicMs    / totalMs) * 100) : 0;
+
+        await pool.query(
+            `UPDATE sessions
+             SET avg_heart_rate        = $2,
+                 avg_spo2              = $3,
+                 avg_stress_score      = $4,
+                 time_relaxed_percent  = $5,
+                 time_moderate_percent = $6,
+                 time_panic_percent    = $7,
+                 total_data_points     = $8
+             WHERE id = $1`,
+            [sessionId, avgHR, avgSpo2, avgStress, relaxedPct, moderatePct, panicPct, total]
+        );
+
+        console.log(
+            `[DB] KPIs saved for session ${sessionId}: ` +
+            `HR=${avgHR}, SpO2=${avgSpo2}, Stress=${avgStress}, ` +
+            `Relaxed=${relaxedPct}%, Moderate=${moderatePct}%, Panic=${panicPct}%, Points=${total}`
+        );
+    } catch (error) {
+        console.error(`[DB ERROR] Failed to compute/save session KPIs for ${sessionId}:`, error);
     }
 }
 
@@ -367,7 +448,7 @@ async function updateDeviceLastSeen(deviceId) {
 module.exports = {
     initializeDatabase,
     insertAnxietyProfile,
-    
+
     // Routing & Calibration
     getActivePatientByDevice,
     getPatientBaseline,
@@ -380,6 +461,7 @@ module.exports = {
     endSession,
     calculateSessionHRV,
     completeSessionWithHRV,
+    computeAndSaveSessionKPIs,
     getPatientTreatmentHistory,
 
     // Device tracking

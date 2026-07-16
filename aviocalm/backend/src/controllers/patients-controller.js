@@ -546,26 +546,46 @@ const getSessionAnalytics = async (req, res) => {
         success: true,
         data: {
           timeSeriesData: [],
-          timeInRangeDistribution: {
-            relaxed: 0,
-            moderate: 0,
-            panic: 0
-          }
+          precomputedKPIs: {
+            avg_heart_rate:    null,
+            avg_spo2:          null,
+            avg_stress_score:  null,
+            total_data_points: 0,
+          },
+          timeInRangeDistribution: { relaxed: 0, moderate: 0, panic: 0 },
         }
       });
     }
-    
-    // Downsample data into 30-second windows
-    const timeSeriesData = downsampleData(rawData, 30000); // 30 seconds in milliseconds
-    
-    // Calculate time-in-range distribution
-    const timeInRangeDistribution = calculateTimeInRange(rawData);
-    
+
+    // Downsample raw data into 30-second windows for the time-series chart only
+    const timeSeriesData = downsampleData(rawData, 30000);
+
+    // Fetch pre-computed KPI aggregates written to the sessions table at session close.
+    // These replace the former on-the-fly calculateTimeInRange / reduce operations.
+    const kpiResult = await pool.query(
+      `SELECT avg_heart_rate, avg_spo2, avg_stress_score,
+              time_relaxed_percent, time_moderate_percent, time_panic_percent,
+              total_data_points
+       FROM sessions WHERE id = $1`,
+      [sessionId]
+    );
+    const kpi = kpiResult.rows[0] ?? {};
+
     res.json({
       success: true,
       data: {
         timeSeriesData,
-        timeInRangeDistribution
+        precomputedKPIs: {
+          avg_heart_rate:    kpi.avg_heart_rate    ?? null,
+          avg_spo2:          kpi.avg_spo2          ?? null,
+          avg_stress_score:  kpi.avg_stress_score  != null ? parseFloat(kpi.avg_stress_score) : null,
+          total_data_points: kpi.total_data_points ?? 0,
+        },
+        timeInRangeDistribution: {
+          relaxed:  kpi.time_relaxed_percent  ?? 0,
+          moderate: kpi.time_moderate_percent ?? 0,
+          panic:    kpi.time_panic_percent    ?? 0,
+        },
       }
     });
   } catch (error) {
@@ -641,45 +661,6 @@ function processWindow(windowData) {
     vrState:        dominantVrState,
     difficulty:     windowData[0].difficulty,
     dataPoints:     windowData.length
-  };
-}
-
-// Helper function to calculate time-in-range distribution
-function calculateTimeInRange(data) {
-  if (!data || data.length === 0) {
-    return { relaxed: 0, moderate: 0, panic: 0 };
-  }
-  
-  let relaxedTime = 0;
-  let moderateTime = 0;
-  let panicTime = 0;
-  
-  for (let i = 0; i < data.length - 1; i++) {
-    const currentPoint = data[i];
-    const nextPoint = data[i + 1];
-    const stressScore = currentPoint.stress_score || 0;
-    
-    // Calculate time duration between points (in seconds)
-    const currentTime = new Date(currentPoint.recorded_at).getTime();
-    const nextTime = new Date(nextPoint.recorded_at).getTime();
-    const duration = (nextTime - currentTime) / 1000; // Convert to seconds
-    
-    // Categorize based on stress score
-    if (stressScore < 40) {
-      relaxedTime += duration;
-    } else if (stressScore <= 75) {
-      moderateTime += duration;
-    } else {
-      panicTime += duration;
-    }
-  }
-  
-  const totalTime = relaxedTime + moderateTime + panicTime;
-  
-  return {
-    relaxed: totalTime > 0 ? Math.round((relaxedTime / totalTime) * 100) : 0,
-    moderate: totalTime > 0 ? Math.round((moderateTime / totalTime) * 100) : 0,
-    panic: totalTime > 0 ? Math.round((panicTime / totalTime) * 100) : 0
   };
 }
 
@@ -803,17 +784,15 @@ const getSessionAlerts = async (req, res) => {
       [sessionId]
     );
 
-    // 3. Total raw biometric samples recorded during the session
-    const countResult = await pool.query(
-      `SELECT COUNT(*)::int AS total_points
-       FROM anxiety_profiles
-       WHERE session_id = $1`,
+    // 3. Pre-computed total_data_points from the sessions table (written at session close).
+    // This replaces the former live COUNT(*) on anxiety_profiles.
+    const sessionKpiResult = await pool.query(
+      `SELECT total_data_points FROM sessions WHERE id = $1`,
       [sessionId]
     );
 
-    const baseline_hr  = baselineResult.rows[0]?.baseline_hr  ?? null;
-    const total_points = countResult.rows[0]?.total_points     ?? 0;
-    // Each chart time window aggregates 3 raw anxiety_profile records
+    const baseline_hr  = baselineResult.rows[0]?.baseline_hr         ?? null;
+    const total_points = sessionKpiResult.rows[0]?.total_data_points  ?? 0;
     const window_count = Math.floor(total_points / 3);
 
     res.json({
