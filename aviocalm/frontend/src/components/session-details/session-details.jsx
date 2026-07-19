@@ -357,16 +357,16 @@ export function SessionDetails() {
   // ── KPI cards — values read from pre-computed columns in the sessions table ──
 
   const kpiCards = (() => {
-    const kpis = analyticsData?.precomputedKPIs;
-    if (!kpis) return [];
-
-    const hrv = sessionNavState?.overall_hrv_rmssd ?? null;
+    // Use an empty object as fallback so all four cards always render with 'N/A'
+    // values when precomputedKPIs is absent (e.g., session ended with zero data points).
+    const kpis = analyticsData?.precomputedKPIs ?? {};
+    const hrv  = sessionNavState?.overall_hrv_rmssd ?? null;
 
     return [
-      { label: 'Avg Heart Rate',   value: kpis.avg_heart_rate   != null ? String(kpis.avg_heart_rate)                      : 'N/A', unit: kpis.avg_heart_rate   != null ? 'BPM'   : null, Icon: Heart,      iconColor: 'text-blue-600',    iconBg: 'bg-blue-50'    },
-      { label: 'Avg SpO₂',         value: kpis.avg_spo2         != null ? String(kpis.avg_spo2)                            : 'N/A', unit: kpis.avg_spo2         != null ? '%'     : null, Icon: Wind,       iconColor: 'text-teal-600',    iconBg: 'bg-teal-50'    },
-      { label: 'Avg Stress Score',  value: kpis.avg_stress_score != null ? kpis.avg_stress_score.toFixed(1)                 : 'N/A', unit: kpis.avg_stress_score != null ? '/ 100' : null, Icon: TrendingUp, iconColor: 'text-purple-600', iconBg: 'bg-purple-50'  },
-      { label: 'HRV RMSSD',         value: hrv                  != null ? String(hrv)                                      : 'N/A', unit: hrv                   != null ? 'ms'    : null, Icon: Activity,   iconColor: 'text-emerald-600', iconBg: 'bg-emerald-50' },
+      { label: 'Avg Heart Rate',   value: kpis.avg_heart_rate   != null ? String(kpis.avg_heart_rate)             : 'N/A', unit: kpis.avg_heart_rate   != null ? 'BPM'   : null, Icon: Heart,      iconColor: 'text-blue-600',    iconBg: 'bg-blue-50'    },
+      { label: 'Avg SpO₂',         value: kpis.avg_spo2         != null ? String(kpis.avg_spo2)                   : 'N/A', unit: kpis.avg_spo2         != null ? '%'     : null, Icon: Wind,       iconColor: 'text-teal-600',    iconBg: 'bg-teal-50'    },
+      { label: 'Avg Stress Score',  value: kpis.avg_stress_score != null ? Number(kpis.avg_stress_score).toFixed(1): 'N/A', unit: kpis.avg_stress_score != null ? '/ 100' : null, Icon: TrendingUp, iconColor: 'text-purple-600',  iconBg: 'bg-purple-50'  },
+      { label: 'HRV RMSSD',         value: hrv                   != null ? String(hrv)                            : 'N/A', unit: hrv                   != null ? 'ms'    : null, Icon: Activity,   iconColor: 'text-emerald-600', iconBg: 'bg-emerald-50' },
     ];
   })();
 
@@ -770,7 +770,7 @@ export function SessionDetails() {
         <div className="w-full bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col">
           <h2 className="text-sm font-semibold text-gray-700 mb-4">Time in Stress Range</h2>
 
-          {pieData.length > 0 ? (
+          {pieData.length > 0 && pieData.some(d => d.value > 0) ? (
             <>
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>

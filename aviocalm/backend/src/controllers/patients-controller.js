@@ -570,6 +570,9 @@ const getSessionAnalytics = async (req, res) => {
       [sessionId]
     );
     const kpi = kpiResult.rows[0] ?? {};
+    // Diagnostic log: surface any NULL columns that indicate computeAndSaveSessionKPIs
+    // was not called at session close (missing data will render as N/A on the frontend)
+    console.log(`[ANALYTICS] KPIs read from DB for session ${sessionId}:`, JSON.stringify(kpi));
 
     res.json({
       success: true,

@@ -5,6 +5,7 @@
  */
 
 const pool = require('../config/db');
+const { computeAndSaveSessionKPIs } = require('../db/db-manager');
 
 /**
  * Resolves the active patient assigned to a device via kit assignment
@@ -58,6 +59,12 @@ async function completeSession(sessionId) {
         if (result.rows.length > 0) {
             const s = result.rows[0];
             console.log(`[DEVICE RESOLVER] Session ${sessionId} completed — duration: ${s.duration_minutes}min | HRV RMSSD: ${s.overall_hrv_rmssd}ms`);
+            // Compute and persist KPI aggregates (avg HR/SpO2/stress, time-in-range
+            // percentages, total_data_points) into the sessions row so the analytics
+            // endpoint can read pre-computed values without re-aggregating raw data.
+            await computeAndSaveSessionKPIs(sessionId);
+        } else {
+            console.warn(`[DEVICE RESOLVER] Session ${sessionId} not updated — not found or already Completed/Halted. Skipping KPI computation.`);
         }
     } catch (error) {
         console.error('[DEVICE RESOLVER] Error completing session:', error);

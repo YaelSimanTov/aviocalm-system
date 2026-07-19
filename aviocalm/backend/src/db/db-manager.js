@@ -308,7 +308,7 @@ async function computeAndSaveSessionKPIs(sessionId) {
         );
 
         if (rows.length === 0) {
-            console.warn(`[DB] No anxiety_profiles for session ${sessionId}, skipping KPI save`);
+            console.warn(`[DB] No anxiety_profiles for session ${sessionId} — zero data points, skipping KPI save`);
             return;
         }
 
@@ -343,6 +343,15 @@ async function computeAndSaveSessionKPIs(sessionId) {
         const relaxedPct  = totalMs > 0 ? Math.round((relaxedMs  / totalMs) * 100) : 0;
         const moderatePct = totalMs > 0 ? Math.round((moderateMs / totalMs) * 100) : 0;
         const panicPct    = totalMs > 0 ? Math.round((panicMs    / totalMs) * 100) : 0;
+
+        // Pre-save verification: confirm every value is a finite number before writing to DB
+        console.log(
+            `[DB] Pre-save KPI verification for session ${sessionId} (${total} data points): ` +
+            `avgHR=${avgHR} [${Number.isFinite(avgHR) ? 'OK' : 'INVALID'}], ` +
+            `avgSpo2=${avgSpo2} [${avgSpo2 == null || Number.isFinite(avgSpo2) ? 'OK' : 'INVALID'}], ` +
+            `avgStress=${avgStress} [${Number.isFinite(avgStress) ? 'OK' : 'INVALID'}], ` +
+            `relaxed=${relaxedPct}%, moderate=${moderatePct}%, panic=${panicPct}%`
+        );
 
         await pool.query(
             `UPDATE sessions
