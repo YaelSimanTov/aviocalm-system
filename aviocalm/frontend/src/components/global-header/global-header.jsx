@@ -21,8 +21,8 @@ export const GlobalHeader = ({ isSidebarCollapsed }) => {
 
         {/* Right Section - Minimalist navigation elements only */}
         <div className="global-header__right">
-          {/* Notification Bell */}
-          <NotificationCenter />
+          {/* Notification Bell -- visible only for Therapist accounts */}
+          {user?.role === 'Therapist' && <NotificationCenter />}
 
           {/* User Info */}
           <div className="global-header__user">

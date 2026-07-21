@@ -211,7 +211,10 @@ export const PatientProfile = () => {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString();
+    // Extract the date portion (YYYY-MM-DD) before any time/timezone suffix to
+    // avoid day-shifting caused by UTC-to-local conversion on date-only values.
+    const [year, month, day] = dateString.split('T')[0].split('-');
+    return `${parseInt(day)}/${parseInt(month)}/${year}`;
   };
 
   const calculateAge = (dateString) => {

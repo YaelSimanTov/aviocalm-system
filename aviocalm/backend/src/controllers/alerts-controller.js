@@ -1,10 +1,18 @@
 const pool = require('../config/db');
 
 // GET /api/alerts/unread
-// Returns all unread alerts joined with patient name and national ID,
-// ordered newest first so the dropdown surfaces the most recent events.
+// Returns unread alerts scoped to the requesting clinician's own patients only.
+// Owner accounts have no patient assignments and always receive an empty list.
 const getUnreadAlerts = async (req, res) => {
+  const { userId, role } = req.user;
+
+  // Owners do not manage individual patients, so they never receive alerts.
+  if (role === 'Owner') {
+    return res.json({ success: true, data: [] });
+  }
+
   try {
+    // Filter by therapist_id so that each clinician sees only their own patients' alerts.
     const { rows } = await pool.query(`
       SELECT
         a.id,
@@ -21,8 +29,9 @@ const getUnreadAlerts = async (req, res) => {
       FROM alerts a
       JOIN patients p ON a.patient_id = p.id
       WHERE a.is_read = false
+        AND p.therapist_id = $1
       ORDER BY a.created_at DESC
-    `);
+    `, [userId]);
 
     res.json({ success: true, data: rows });
   } catch (err) {
@@ -32,14 +41,28 @@ const getUnreadAlerts = async (req, res) => {
 };
 
 // PATCH /api/alerts/:id/read
-// Marks a single alert as read. Returns 404 if the ID is not found.
+// Marks a single alert as read. Clinicians may only mark alerts for their own
+// patients, preventing unauthorised cross-clinician reads (IDOR guard).
 const markAlertRead = async (req, res) => {
   const { id } = req.params;
+  const { userId, role } = req.user;
 
   try {
+    // Build a query that verifies ownership before updating.
+    // Owners are blocked entirely — they should never receive alerts.
+    if (role === 'Owner') {
+      return res.status(403).json({ success: false, error: 'Not authorised to manage alerts' });
+    }
+
     const { rows } = await pool.query(
-      'UPDATE alerts SET is_read = true WHERE id = $1 RETURNING id',
-      [id]
+      `UPDATE alerts
+       SET    is_read = true
+       FROM   patients p
+       WHERE  alerts.id         = $1
+         AND  alerts.patient_id = p.id
+         AND  p.therapist_id    = $2
+       RETURNING alerts.id`,
+      [id, userId]
     );
 
     if (rows.length === 0) {
