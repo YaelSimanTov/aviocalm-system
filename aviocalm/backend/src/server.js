@@ -240,7 +240,7 @@ io.on('connection', (socket) => {
                 ?? await getActiveSessionForPatient(patientId);
             if (sessionId) {
                 try {
-                    await insertVrEvent(sessionId, vrTag, vrMessage);
+                    await insertVrEvent(sessionId, vrTag, vrMessage, new Date().toISOString());
                 } catch (dbErr) {
                     console.error('[VR LOG] Failed to persist event for session ' + sessionId + ': ' + dbErr.message);
                 }

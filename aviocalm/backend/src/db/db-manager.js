@@ -3,11 +3,15 @@ const { Pool } = require('pg');
 const { calculateRMSSD } = require('../services/hrv-calculator'); // Ensure this path is correct for your project
 
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
+  user:     'postgres',
+  host:     'localhost',
   database: 'aviocalm',
   password: 'postgres',
-  port: 5433,
+  port:     5433,
+  // Force every connection in this pool to use UTC so that NOW(),
+  // CURRENT_TIMESTAMP, and all TIMESTAMPTZ reads/writes are UTC-based,
+  // regardless of the OS timezone of the server or developer machine.
+  options:  '-c timezone=UTC',
 });
 
 /**
@@ -423,11 +427,21 @@ async function getActiveSessionForPatient(patientId) {
     return result.rows.length > 0 ? result.rows[0].id : null;
 }
 
-async function insertVrEvent(sessionId, tag, message) {
-    await pool.query(
-        'INSERT INTO vr_events (session_id, tag, message) VALUES ($1, $2, $3)',
-        [sessionId, tag, message]
-    );
+async function insertVrEvent(sessionId, tag, message, timestamp) {
+    // Accept an explicit UTC timestamp from the caller so the stored value
+    // matches the Node.js clock exactly. Falls back to NOW() only when the
+    // caller omits the argument (e.g., legacy code paths).
+    if (timestamp) {
+        await pool.query(
+            'INSERT INTO vr_events (session_id, timestamp, tag, message) VALUES ($1, $2, $3, $4)',
+            [sessionId, timestamp, tag, message]
+        );
+    } else {
+        await pool.query(
+            'INSERT INTO vr_events (session_id, tag, message) VALUES ($1, $2, $3)',
+            [sessionId, tag, message]
+        );
+    }
 }
 
 /**

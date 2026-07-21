@@ -42,7 +42,7 @@ const STAGE_NAMES = {
   TakeOffState:  'Takeoff',
   InFlightState: 'Cruising',
   LandingState:  'Landing',
-  LandedState:   'Completed',
+  LandedState:   'Landed',
   PausedState:   'Paused',
 };
 
@@ -51,8 +51,20 @@ const LEGEND_STAGES = [
   { state: 'TakeOffState',  label: 'Takeoff'   },
   { state: 'InFlightState', label: 'Cruising'  },
   { state: 'LandingState',  label: 'Landing'   },
-  { state: 'LandedState',   label: 'Completed' },
+  { state: 'LandedState',   label: 'Landed' },
 ];
+
+// ─── Timestamp normalisation utility ─────────────────────────────────────────
+// Converts any ISO-like timestamp string to a UTC millisecond epoch value.
+// Handles three formats produced by different parts of the system:
+//   'Z' suffix      — already UTC, parsed directly
+//   '+HH:MM' offset — has explicit offset, parsed as-is by Date
+//   no suffix       — naive datetime from PostgreSQL, assumed UTC (appends 'Z')
+const toUtcMs = (s) => {
+  if (!s) return NaN;
+  if (s.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(s)) return new Date(s).getTime();
+  return new Date(`${s}Z`).getTime();
+};
 
 // Per-type colors for alert annotations — severity-based palette.
 // Safety:      Red  (#ef4444) — Critical / absolute danger
@@ -65,38 +77,59 @@ const ALERT_ANNOTATION_COLORS = {
 };
 
 // ─── Helper: VR phase blocks for ReferenceArea backgrounds ───────────────────
+// Uses explicit [Flight Phase] VR events as the source of truth for phase start times.
+// Data before the first logged phase event renders with no background (pre-flight neutral).
 
-function generateVrStateBlocks(timeSeriesData) {
+function generateVrPhaseBlocks(timeSeriesData, vrEvents) {
   if (!timeSeriesData || timeSeriesData.length === 0) return [];
-  const blocks = [];
-  let currentState = timeSeriesData[0].vrState || 'Default';
-  let startIndex   = 0;
 
-  for (let i = 1; i < timeSeriesData.length; i++) {
-    const entryState = timeSeriesData[i].vrState || 'Default';
-    if (entryState !== currentState) {
+  // Parse the Unity state name from [Flight Phase] event messages
+  const PHASE_REGEX = /Phase changed to:\s*(\w+)/;
+  const phaseEvents = (vrEvents ?? [])
+    .filter((e) => e.tag === '[Flight Phase]')
+    .map((e) => {
+      const match = PHASE_REGEX.exec(e.message);
+      return match ? { state: match[1], timestampMs: toUtcMs(e.timestamp) } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.timestampMs - b.timestampMs);
+
+  if (phaseEvents.length === 0) return [];
+
+  // Map each phase event to the nearest dataIndex in timeSeriesData
+  const phaseAtIndex = phaseEvents.map(({ state, timestampMs }) => {
+    let bestIdx  = 0;
+    let bestDiff = Infinity;
+    timeSeriesData.forEach((pt, i) => {
+      const diff = Math.abs(toUtcMs(pt.timestamp) - timestampMs);
+      if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+    });
+    return { state, dataIndex: bestIdx };
+  });
+
+  // Build contiguous blocks: each block spans from its phase event index to just before the next
+  const blocks = [];
+  for (let i = 0; i < phaseAtIndex.length; i++) {
+    const { state, dataIndex: startIdx } = phaseAtIndex[i];
+    const endIdx = i + 1 < phaseAtIndex.length
+      ? phaseAtIndex[i + 1].dataIndex - 1
+      : timeSeriesData.length - 1;
+    if (endIdx >= startIdx) {
       blocks.push({
-        startIndex,
-        endIndex: i - 1,
-        color: VR_STATE_COLORS[currentState] || VR_STATE_COLORS.Default,
+        startIndex: startIdx,
+        endIndex:   endIdx,
+        color:      VR_STATE_COLORS[state] ?? null,
       });
-      currentState = entryState;
-      startIndex   = i;
     }
   }
-  blocks.push({
-    startIndex,
-    endIndex: timeSeriesData.length - 1,
-    color: VR_STATE_COLORS[currentState] || VR_STATE_COLORS.Default,
-  });
+
   return blocks;
 }
 
 // ─── Helper: map alert breach window to nearest time-series dataIndex values ──
 
 function mapAlertToDataIndices(alertTimestamp, durationSeconds, timeSeriesData) {
-  const toMs  = (s) => new Date(s.endsWith('Z') ? s : `${s}Z`).getTime();
-  const startMs = toMs(alertTimestamp);
+  const startMs = toUtcMs(alertTimestamp);
   const endMs   = startMs + durationSeconds * 1000;
 
   let startIdx = 0;
@@ -105,7 +138,7 @@ function mapAlertToDataIndices(alertTimestamp, durationSeconds, timeSeriesData) 
   let minEnd   = Infinity;
 
   timeSeriesData.forEach((pt, i) => {
-    const ptMs = toMs(pt.timestamp);
+    const ptMs = toUtcMs(pt.timestamp);
     const sd   = Math.abs(ptMs - startMs);
     const ed   = Math.abs(ptMs - endMs);
     if (sd < minStart) { minStart = sd; startIdx = i; }
@@ -119,8 +152,7 @@ function mapAlertToDataIndices(alertTimestamp, durationSeconds, timeSeriesData) 
 
 function formatTimestamp(isoString) {
   if (!isoString) return 'N/A';
-  const utc = isoString.endsWith('Z') ? isoString : `${isoString}Z`;
-  return new Date(utc).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' });
+  return new Date(toUtcMs(isoString)).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' });
 }
 
 // ─── AlertAnnotationDot ───────────────────────────────────────────────────────
@@ -190,18 +222,7 @@ function AlertAnnotationDot({ cx, cy, alert, color, isHovered, onEnter, onLeave 
  * Fetches real Unity VR events from the DB and merges them with medical alerts.
  * Each item is color-coded by Unity log tag or alert type.
  */
-function SessionEventTimeline({ sessionId, sessionAlerts }) {
-  const [vrEvents, setVrEvents] = useState([]);
-
-  // Fetch persisted VR events for this session from the backend
-  useEffect(() => {
-    if (!sessionId) return;
-    api.getVrEvents(sessionId).then((result) => {
-      if (result.success && Array.isArray(result.data)) {
-        setVrEvents(result.data);
-      }
-    });
-  }, [sessionId]);
+function SessionEventTimeline({ sessionAlerts, vrEvents }) {
 
   // Convert medical alerts to unified event format
   const alertEvents = sessionAlerts.map((a) => ({
@@ -303,6 +324,7 @@ export function SessionDetails() {
   const [hoveredAlertId, setHoveredAlertId]     = useState(null);
   // baseline_hr is the only field still sourced from the alerts endpoint
   const [sessionMeta, setSessionMeta]           = useState({ baseline_hr: null });
+  const [vrEvents, setVrEvents]                 = useState([]);
 
   // Session object forwarded by TreatmentHistory via route state.
   // Used for header date and HRV RMSSD card before analytics data arrives.
@@ -312,6 +334,7 @@ export function SessionDetails() {
   useEffect(() => {
     fetchAnalytics();
     fetchAlerts();
+    fetchVrEvents();
   }, [sessionId]);
 
   const fetchAnalytics = async () => {
@@ -339,6 +362,13 @@ export function SessionDetails() {
     }
   };
 
+  const fetchVrEvents = async () => {
+    const result = await api.getVrEvents(sessionId);
+    if (result.success && Array.isArray(result.data)) {
+      setVrEvents(result.data);
+    }
+  };
+
   // Navigate back to the patient profile, landing on the history tab
   const handleBack = () => {
     navigate(`/patients/${patientId}`, { state: { targetTab: 'history' } });
@@ -347,7 +377,7 @@ export function SessionDetails() {
   // ── Chart data ──────────────────────────────────────────────────────────────
 
   const chartData = analyticsData?.timeSeriesData?.map((d, i) => ({ ...d, dataIndex: i })) ?? [];
-  const vrBlocks  = generateVrStateBlocks(chartData);
+  const vrBlocks  = generateVrPhaseBlocks(chartData, vrEvents);
 
   // Derive session start date from route state, or fall back to first analytics point
   const sessionDate = sessionNavState?.started_at
@@ -529,8 +559,8 @@ export function SessionDetails() {
               <ResponsiveContainer width="100%" height={500}>
                 <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 40 }}>
 
-                  {/* VR phase background fills — reserved for flight-phase context only */}
-                  {vrBlocks.map((block, i) => (
+                  {/* VR phase background fills — only rendered for known states; null-color blocks (pre-flight) are skipped */}
+                  {vrBlocks.filter((b) => b.color).map((block, i) => (
                     <ReferenceArea
                       key={`bg-${i}`}
                       x1={block.startIndex}
@@ -592,7 +622,7 @@ export function SessionDetails() {
                     domain={[0, chartData.length - 1]}
                     tickFormatter={(val) =>
                       chartData[val]?.timestamp
-                        ? new Date(chartData[val].timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        ? new Date(toUtcMs(chartData[val].timestamp)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                         : ''
                     }
                     minTickGap={15}
@@ -634,26 +664,30 @@ export function SessionDetails() {
                       const d = payload[0].payload;
                       const stageName = STAGE_NAMES[d.vrState] || d.vrState || 'Unknown';
 
-                      // Normalise an ISO string to ms, adding 'Z' suffix if absent
-                      const toMs = (iso) =>
-                        new Date(iso.endsWith('Z') ? iso : `${iso}Z`).getTime();
                       const toTime = (iso) =>
-                        new Date(iso.endsWith('Z') ? iso : `${iso}Z`).toLocaleTimeString([], {
+                        new Date(toUtcMs(iso)).toLocaleTimeString([], {
                           hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
                         });
 
-                      // Find alerts whose time window covers the currently hovered data point
-                      const pointMs = toMs(d.timestamp);
+                      // Bucket-based alert matching: an alert is shown when its time range
+                      // overlaps with the time bucket of the currently hovered data point.
+                      // This correctly handles real hardware's sub-second alert timestamps
+                      // that fall inside a 30-second downsampled bucket but not on its exact edge.
+                      const bucketStart = toUtcMs(d.timestamp);
+                      const nextPt      = chartData[d.dataIndex + 1];
+                      const bucketEnd   = nextPt ? toUtcMs(nextPt.timestamp) : bucketStart + 30_000;
+
                       const activeAlerts = sessionAlerts.filter((a) => {
-                        const start = toMs(a.timestamp);
-                        const end   = start + a.duration_seconds * 1000;
-                        return pointMs >= start && pointMs <= end;
+                        const alertStart = toUtcMs(a.timestamp);
+                        const alertEnd   = alertStart + a.duration_seconds * 1000;
+                        // Overlapping intervals: alert starts before bucket ends AND ends after bucket starts
+                        return alertStart < bucketEnd && alertEnd > bucketStart;
                       });
 
                       return (
                         <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-xs space-y-1 max-w-xs">
                           <p className="font-semibold text-gray-700">
-                            {new Date(d.timestamp.endsWith('Z') ? d.timestamp : `${d.timestamp}Z`).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+                            {new Date(toUtcMs(d.timestamp)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
                           </p>
                           <p className="text-blue-600">Heart Rate: <strong>{d.avgHeartRate} BPM</strong></p>
                           <p className="text-purple-600">Stress Score: <strong>{d.avgStressScore}</strong></p>
@@ -667,7 +701,7 @@ export function SessionDetails() {
                               {activeAlerts.map((a) => {
                                 const color   = ALERT_ANNOTATION_COLORS[a.alert_type] ?? '#6b7280';
                                 const endIso  = new Date(
-                                  toMs(a.timestamp) + a.duration_seconds * 1000
+                                  toUtcMs(a.timestamp) + a.duration_seconds * 1000
                                 ).toISOString();
                                 return (
                                   <div key={a.id}>
@@ -761,7 +795,7 @@ export function SessionDetails() {
 
             {/* Sidebar area — 28% width */}
             <div className="w-[28%]">
-              <SessionEventTimeline sessionId={sessionId} sessionAlerts={sessionAlerts} />
+              <SessionEventTimeline sessionAlerts={sessionAlerts} vrEvents={vrEvents} />
             </div>
           </div>
         </div>

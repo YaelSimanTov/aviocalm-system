@@ -44,28 +44,63 @@ const CHANNEL_ALERT_TYPE = {
 //               baselineSamples, baseline, openBreaches }
 const sessionRegistry = new Map();
 
-// Cached after the first DB query to avoid per-sample round-trips.
-// normsQueried guards against re-fetching when the table is empty (null result).
-let cachedNorms   = null;
-let normsQueried  = false;
+// ─────────────────────────────────────────────────────────────────────────────
+// Age helpers
+// ─────────────────────────────────────────────────────────────────────────────
 
-async function fetchMedicalNorms() {
-  if (normsQueried) {
-    return cachedNorms;
+// Calculates a person's current age in whole years from their date_of_birth.
+function calculateAge(dateOfBirth) {
+  const today = new Date();
+  const dob   = new Date(dateOfBirth);
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+    age--;
   }
-  console.log('[RULE ENGINE] Fetching medical norms from DB (26-40 age group)...');
-  // Default to the 26-40 age group; a future enhancement can resolve per patient DOB
-  const { rows } = await pool.query(
-    "SELECT * FROM medical_norms WHERE age_group = '26-40' LIMIT 1"
+  return age;
+}
+
+// Maps a numeric age to the medical_norms.age_group enum value stored in the DB.
+function ageToAgeGroup(age) {
+  if (age <= 25) return '18-25';
+  if (age <= 40) return '26-40';
+  if (age <= 60) return '41-60';
+  return '60+';
+}
+
+// Queries the patients table for the patient's DOB, calculates their age, maps
+// it to the correct age_group bracket, then fetches and returns the matching
+// medical_norms row.  Returns null when no matching row is found.
+// Norms are cached inside the per-session state object (not as a module singleton)
+// so concurrent sessions for patients of different ages each get the right values.
+async function fetchNormsForPatient(patientUuid) {
+  const { rows: patientRows } = await pool.query(
+    'SELECT date_of_birth FROM patients WHERE id = $1',
+    [patientUuid]
   );
-  normsQueried = true;
-  cachedNorms  = rows[0] || null;
-  if (cachedNorms) {
-    console.log(`[RULE ENGINE] Medical norms loaded: HR_Max=${cachedNorms.max_heart_rate}, SpO2_Min=${cachedNorms.spo2_min}, Stress_Max=${cachedNorms.stress_max}, Duration=${cachedNorms.duration_threshold}s, Delta=${cachedNorms.delta_hr_percent}%`);
+
+  let ageGroup = '26-40'; // safe fallback when DOB is unavailable
+  if (patientRows.length && patientRows[0].date_of_birth) {
+    const age = calculateAge(patientRows[0].date_of_birth);
+    ageGroup  = ageToAgeGroup(age);
+    console.log(`[RULE ENGINE] Patient ${patientUuid} — age: ${age} → age group: '${ageGroup}'`);
   } else {
-    console.error('[RULE ENGINE] WARNING — medical_norms table returned 0 rows for age_group 26-40. Alerts will NOT fire.');
+    console.warn(`[RULE ENGINE] No date_of_birth for patient ${patientUuid}; defaulting to age group '${ageGroup}'`);
   }
-  return cachedNorms;
+
+  console.log(`[RULE ENGINE] Fetching medical norms from DB (${ageGroup} age group)...`);
+  const { rows } = await pool.query(
+    'SELECT * FROM medical_norms WHERE age_group = $1 LIMIT 1',
+    [ageGroup]
+  );
+
+  const norms = rows[0] || null;
+  if (norms) {
+    console.log(`[RULE ENGINE] Medical norms loaded for '${ageGroup}': HR_Max=${norms.max_heart_rate}, SpO2_Min=${norms.spo2_min}, Stress_Max=${norms.stress_max}, Duration=${norms.duration_threshold}s, Delta=${norms.delta_hr_percent}%`);
+  } else {
+    console.error(`[RULE ENGINE] WARNING — medical_norms table returned 0 rows for age_group '${ageGroup}'. Alerts will NOT fire.`);
+  }
+  return norms;
 }
 
 function getOrCreateSessionState(sessionId) {
@@ -81,6 +116,8 @@ function getOrCreateSessionState(sessionId) {
       baselineSamples: { hr: [], stress: [] },
       baseline:        null,
       openBreaches:    new Map(),  // channelKey -> breach metadata
+      norms:           null,       // cached per-session after first DOB lookup
+      patientUuid:     null,       // stored so finalizeSession can resolve norms
     });
   }
   return sessionRegistry.get(sessionId);
@@ -245,8 +282,14 @@ async function processVitalsSample({ sessionId, patientUuid, timestamp, heartRat
     return;
   }
 
-  // Step 3 — Load and cache medical norms; inject into engine on first use
-  const norms = await fetchMedicalNorms();
+  // Step 3 — Load and cache medical norms for this patient (once per session).
+  // Norms are stored in state.norms so each session resolves the correct age group
+  // independently, which is required for correct behaviour in concurrent sessions.
+  if (!state.patientUuid) state.patientUuid = patientUuid;
+  if (!state.norms) {
+    state.norms = await fetchNormsForPatient(patientUuid);
+  }
+  const norms = state.norms;
   if (!norms) {
     console.warn(`[RULE ENGINE] [EVAL ${n}] No medical norms — skipping`);
     return;
@@ -294,7 +337,9 @@ async function finalizeSession(sessionId) {
 
   console.log(`[RULE ENGINE] Finalizing session ${sessionId} — ${state.openBreaches.size} open breach(es), ${state.sampleCount} total samples`);
 
-  const norms = await fetchMedicalNorms();
+  // Use the norms already resolved for this session; fall back to a fresh lookup
+  // only if the session never received any vitals samples (edge case).
+  const norms = state.norms || await fetchNormsForPatient(state.patientUuid);
   const now   = new Date();
 
   for (const [channelKey, breach] of state.openBreaches) {

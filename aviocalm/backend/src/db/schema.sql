@@ -30,8 +30,8 @@ CREATE TABLE users (
     last_name VARCHAR(100) NOT NULL,
     email VARCHAR(255) UNIQUE,
     phone_number VARCHAR(20),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Patients Table (Epic 2.1)
@@ -51,8 +51,8 @@ CREATE TABLE patients (
     emergency_contact_phone VARCHAR(20),
     therapist_id UUID NOT NULL REFERENCES users(user_id),
     status VARCHAR(20) DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive', 'Discharged')),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Sessions Table (New Epic 2.3 & 3.1)
@@ -62,8 +62,8 @@ CREATE TABLE patients (
 CREATE TABLE sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     patient_id UUID NOT NULL REFERENCES patients(id),
-    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    ended_at TIMESTAMP,
+    started_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMPTZ,
     duration_minutes INTEGER,
     overall_hrv_rmssd DECIMAL(5,2),
     status VARCHAR(20) DEFAULT 'In Progress' CHECK (status IN ('In Progress', 'Completed', 'Halted')),
@@ -82,7 +82,7 @@ CREATE TABLE anxiety_profiles (
     log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     patient_id VARCHAR(20) NOT NULL REFERENCES patients(national_id),
     session_id UUID NOT NULL,
-    recorded_at TIMESTAMP NOT NULL,
+    recorded_at TIMESTAMPTZ NOT NULL,
     vr_state VARCHAR(50) NOT NULL,
     difficulty VARCHAR(50) NOT NULL,
     heart_rate INTEGER,
@@ -97,7 +97,7 @@ CREATE TABLE clinical_notes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
     note_content TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Scene Stress Scores Table (Epic 3.1)
@@ -110,7 +110,7 @@ CREATE TABLE scene_stress_scores (
     avg_heart_rate DECIMAL(5,2) NOT NULL,
     peak_stress_score DECIMAL(5,2) NOT NULL,
     calculated_weighted_score DECIMAL(5,2) NOT NULL,
-    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    recorded_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_scene_session FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
 );
 
@@ -126,7 +126,7 @@ CREATE TABLE medical_norms (
     stress_max FLOAT NOT NULL,
     duration_threshold INTEGER NOT NULL,
     delta_hr_percent FLOAT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE UNIQUE INDEX idx_medical_norms_age_group ON medical_norms (age_group);
@@ -138,7 +138,7 @@ CREATE TABLE patient_baselines (
     session_id        UUID      REFERENCES sessions(id) ON DELETE CASCADE,
     avg_resting_hr    FLOAT     NOT NULL,
     avg_resting_stress FLOAT    NOT NULL,
-    calibrated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    calibrated_at     TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX idx_patient_baselines_session ON patient_baselines (session_id);
 
@@ -148,12 +148,12 @@ CREATE TABLE alerts (
     id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     patient_id       UUID        NOT NULL REFERENCES patients(id)  ON DELETE CASCADE,
     session_id       UUID        NOT NULL REFERENCES sessions(id)  ON DELETE CASCADE,
-    timestamp        TIMESTAMP   NOT NULL,
+    timestamp        TIMESTAMPTZ   NOT NULL,
     duration_seconds INTEGER     NOT NULL DEFAULT 0,
     alert_type       VARCHAR(20) NOT NULL CHECK (alert_type IN ('Safety', 'Statistical', 'Panic')),
     description      TEXT        NOT NULL,
     is_read          BOOLEAN     DEFAULT false,
-    created_at       TIMESTAMP   DEFAULT CURRENT_TIMESTAMP
+    created_at       TIMESTAMPTZ   DEFAULT CURRENT_TIMESTAMP
 );
 
 -- VR Events Table (Epic 7.x)
@@ -162,7 +162,7 @@ CREATE TABLE alerts (
 CREATE TABLE vr_events (
     id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id  UUID        NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    timestamp   TIMESTAMP   NOT NULL DEFAULT NOW(),
+    timestamp   TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     tag         VARCHAR(50) NOT NULL,
     message     TEXT        NOT NULL
 );
@@ -170,18 +170,18 @@ CREATE TABLE vr_events (
 -- Devices Table (Epic 6.1)
 -- Manages individual hardware devices (VR headsets and smartwatches)
 CREATE TABLE devices (
-    device_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    device_id VARCHAR(50) PRIMARY KEY,
     device_type VARCHAR(20) NOT NULL CHECK (device_type IN ('VR', 'Watch')),
     status VARCHAR(20) DEFAULT 'Active' CHECK (status IN ('Active', 'Broken', 'Maintenance')),
-    last_seen TIMESTAMP
+    last_seen TIMESTAMPTZ
 );
 
 -- Kits Table (Epic 6.1)
 -- Packages VR and Watch devices into assignable working units
 CREATE TABLE kits (
     kit_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    vr_device_id UUID NOT NULL REFERENCES devices(device_id),
-    watch_device_id UUID NOT NULL REFERENCES devices(device_id)
+    vr_device_id VARCHAR(50) NOT NULL REFERENCES devices(device_id),
+    watch_device_id VARCHAR(50) NOT NULL REFERENCES devices(device_id)
 );
 
 -- Patient Assignments Table (Epic 6.2)
@@ -190,8 +190,8 @@ CREATE TABLE patient_assignments (
     assignment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     patient_id UUID NOT NULL REFERENCES patients(id),
     kit_id UUID NOT NULL REFERENCES kits(kit_id),
-    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    unassigned_at TIMESTAMP
+    assigned_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    unassigned_at TIMESTAMPTZ
 );
 
 -- Create unique partial index to prevent double-booking of kits
@@ -226,12 +226,7 @@ CREATE INDEX idx_alerts_session    ON alerts(session_id);
 CREATE INDEX idx_alerts_is_read    ON alerts(is_read);
 CREATE INDEX idx_alerts_created_at ON alerts(created_at);
 
--- Insert default owner user (admin / Admin123!)
--- Password: Admin123! (meets requirements: 8+ chars, uppercase, lowercase, special, number)
-INSERT INTO users (username, password_hash, salt, role, is_first_login, first_name, last_name) VALUES 
-('admin', '$2b$10$rOzJqQjQjQjQjQjQjQjQjOzJqQjQjQjQjQjQjQjQjQjQjQjQjQjQ', 'random_salt_here', 'Owner', false, 'System', 'Administrator');
-
--- Insert basic medical norms with safety thresholds
+ -- Insert basic medical norms with safety thresholds
 INSERT INTO medical_norms (age_group, min_heart_rate, max_heart_rate, spo2_min, stress_max, duration_threshold, delta_hr_percent) VALUES 
 ('18-25', 60, 100, 95.0, 75.0, 30, 25.0),
 ('26-40', 60, 100, 95.0, 75.0, 30, 25.0),
