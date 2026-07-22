@@ -103,6 +103,10 @@ let currentDifficulty = LevelDiff.NONE;
 // Used to route incoming device streams to the correct patient session
 const activeSessions = {};
 
+// Dual-device waiting room: patientId -> { vrReady, watchReady, vrDeviceId, watchDeviceId, vrSocketId, watchSocketId, nationalId }
+// A session is only created once BOTH the VR headset AND the Watch are confirmed connected for the same patient.
+const pendingSessions = {};
+
 // 3b. Per-session VR state tracker: sessionId -> { state, difficulty }
 // Kept in sync by vr_system_log; consumed by watch_vitals_update for anxiety_profiles
 const sessionVrState = {};
@@ -130,6 +134,84 @@ async function throttledUpdateLastSeen(deviceId) {
     } catch (err) {
         console.error(`[LAST_SEEN] Failed to update device ${deviceId}: ${err.message}`);
     }
+}
+
+/**
+ * Dual-device session gate: creates a DB session only when BOTH VR and Watch
+ * are confirmed connected for the same patient.
+ * Reads pendingSessions[patientId]; if vrReady AND watchReady are both true,
+ * calls createNewSession, populates activeSessions, and removes the pending slot.
+ * @param {string} patientId  - The patient UUID
+ * @param {string} nationalId - The patient national ID
+ * @returns {Promise<void>}
+ */
+async function tryInitiateSession(patientId, nationalId) {
+    const pending = pendingSessions[patientId];
+    if (!pending || !pending.vrReady || !pending.watchReady) {
+        return; // Both devices not yet connected — keep waiting
+    }
+
+    // Guard: prevent double-creation if a concurrent call already created the session
+    if (activeSessions[patientId]) {
+        delete pendingSessions[patientId];
+        return;
+    }
+
+    console.log(`[DUAL-DEVICE] Both VR and Watch confirmed for patient ${nationalId} — initiating session`);
+    try {
+        const newSessionId = await createNewSession(patientId);
+        activeSessions[patientId] = { nationalId, sessionId: newSessionId };
+        console.log(`[SESSION] Created session ${newSessionId} for patient ${nationalId} (dual-device confirmed)`);
+    } catch (err) {
+        console.error(`[DUAL-DEVICE] Failed to create session for patient ${nationalId}: ${err.message}`);
+        return;
+    }
+
+    // Clear the pending slot now that the session is active
+    delete pendingSessions[patientId];
+}
+
+/**
+ * Registers the VR device as ready in pendingSessions if it has not been marked yet,
+ * then calls tryInitiateSession. Used as a fallback for Unity clients that do not
+ * emit SESSION_START and instead signal readiness via CALIBRATION_START or vr_system_log.
+ * No-op when the session is already active or VR is already marked ready.
+ * @param {object} socket     - The Socket.io socket for this connection
+ * @param {string} patientId  - The patient UUID
+ * @param {string} deviceId   - The VR device ID
+ * @param {string} nationalId - The patient national ID
+ * @returns {Promise<void>}
+ */
+async function markVrReadyIfPending(socket, patientId, deviceId, nationalId) {
+    // Session already active — nothing to do
+    if (activeSessions[patientId]) return;
+
+    // VR already registered — skip to avoid re-entrancy
+    if (pendingSessions[patientId]?.vrReady) return;
+
+    // Bind socket metadata so the disconnect handler can identify this socket
+    if (!socket.patientUuid) {
+        socket.deviceId    = deviceId;
+        socket.patientUuid = patientId;
+        socket.nationalId  = nationalId;
+        socket.deviceType  = 'VR';
+    }
+
+    if (!pendingSessions[patientId]) {
+        pendingSessions[patientId] = {
+            vrReady: false, watchReady: false,
+            vrDeviceId: null, watchDeviceId: null,
+            vrSocketId: null, watchSocketId: null,
+            nationalId
+        };
+    }
+    pendingSessions[patientId].vrReady    = true;
+    pendingSessions[patientId].vrDeviceId = deviceId;
+    pendingSessions[patientId].vrSocketId = socket.id;
+    pendingSessions[patientId].nationalId = nationalId;
+    console.log(`[DUAL-DEVICE] VR device ${deviceId} marked ready (fallback) for patient ${nationalId} — waiting for Watch`);
+
+    await tryInitiateSession(patientId, nationalId);
 }
 
 // 4. Calibration accumulators: patient_uuid -> HR sample array
@@ -166,11 +248,34 @@ io.on('connection', (socket) => {
             const patientId = deviceInfo ? deviceInfo.patient_uuid : null;
             if (!patientId) return;
 
-            const newSessionId = await createNewSession(patientId);
-            // Store as { nationalId, sessionId } for compatibility with watch Channel 2
-            activeSessions[patientId] = { nationalId: deviceInfo.national_id, sessionId: newSessionId };
-            socket.deviceId = payload.deviceId;
-            console.log(`[SESSION] Started session ${newSessionId} for patient ${patientId}`);
+            // Bind socket metadata now so the disconnect handler can identify this socket
+            socket.deviceId    = payload.deviceId;
+            socket.patientUuid = patientId;
+            socket.nationalId  = deviceInfo.national_id;
+            socket.deviceType  = 'VR';
+
+            // If a full session is already active (Watch connected first), nothing more to do
+            if (activeSessions[patientId]) {
+                console.log(`[DUAL-DEVICE] VR connected but session already active for patient ${deviceInfo.national_id}`);
+                return;
+            }
+
+            // Register VR in the dual-device waiting room
+            if (!pendingSessions[patientId]) {
+                pendingSessions[patientId] = {
+                    vrReady: false, watchReady: false,
+                    vrDeviceId: null, watchDeviceId: null,
+                    vrSocketId: null, watchSocketId: null,
+                    nationalId: deviceInfo.national_id
+                };
+            }
+            pendingSessions[patientId].vrReady    = true;
+            pendingSessions[patientId].vrDeviceId = payload.deviceId;
+            pendingSessions[patientId].vrSocketId = socket.id;
+            pendingSessions[patientId].nationalId = deviceInfo.national_id;
+            console.log(`[DUAL-DEVICE] VR device ${payload.deviceId} ready for patient ${deviceInfo.national_id} — waiting for Watch`);
+
+            await tryInitiateSession(patientId, deviceInfo.national_id);
         } catch (err) {
             console.error(`[SESSION START ERROR] ${err.message}`);
         }
@@ -222,6 +327,9 @@ io.on('connection', (socket) => {
                 console.log(`[UNASSIGNED VR LOG] Device ${deviceId}: ${logMessage}`);
                 return;
             }
+
+            // Fallback VR-ready registration for Unity clients that skip SESSION_START
+            await markVrReadyIfPending(socket, patientId, deviceId, deviceInfo.national_id);
 
             // Update last_seen for this VR device (throttled to once per 30 seconds)
             throttledUpdateLastSeen(deviceId);
@@ -282,6 +390,9 @@ io.on('connection', (socket) => {
                 console.log(`[CALIBRATION] Device ${payload.deviceId} has no active patient assignment.`);
                 return;
             }
+
+            // Fallback VR-ready registration for Unity clients that skip SESSION_START
+            await markVrReadyIfPending(socket, patientId, payload.deviceId, deviceInfo.national_id);
 
             console.log(`[CALIBRATION] Starting for patient: ${patientId}`);
             activeCalibrations[patientId] = [];
@@ -362,14 +473,25 @@ io.on('connection', (socket) => {
                             socket.deviceId    = currentDeviceId;
                             console.log(`[LAZY BIND] Device ${currentDeviceId} bound to patient: ${deviceInfo.national_id}`);
 
-                            // Open a new session for this patient if one is not already active
+                            // Register Watch in the dual-device waiting room — session is only
+                            // created once both VR and Watch are confirmed for this patient
                             if (!activeSessions[socket.patientUuid]) {
-                                const sessionId = await createNewSession(socket.patientUuid);
-                                activeSessions[socket.patientUuid] = {
-                                    nationalId: deviceInfo.national_id,
-                                    sessionId
-                                };
-                                console.log(`[SESSION] New session ${sessionId} opened for patient ${deviceInfo.national_id}`);
+                                if (!pendingSessions[socket.patientUuid]) {
+                                    pendingSessions[socket.patientUuid] = {
+                                        vrReady: false, watchReady: false,
+                                        vrDeviceId: null, watchDeviceId: null,
+                                        vrSocketId: null, watchSocketId: null,
+                                        nationalId: deviceInfo.national_id
+                                    };
+                                }
+                                if (!pendingSessions[socket.patientUuid].watchReady) {
+                                    pendingSessions[socket.patientUuid].watchReady    = true;
+                                    pendingSessions[socket.patientUuid].watchDeviceId = currentDeviceId;
+                                    pendingSessions[socket.patientUuid].watchSocketId = socket.id;
+                                    pendingSessions[socket.patientUuid].nationalId    = deviceInfo.national_id;
+                                    console.log(`[DUAL-DEVICE] Watch device ${currentDeviceId} ready for patient ${deviceInfo.national_id} — waiting for VR`);
+                                    await tryInitiateSession(socket.patientUuid, deviceInfo.national_id);
+                                }
                             }
                         } else {
                             console.warn(`[Unassigned Stream] Device ${currentDeviceId} has no active kit assignment — skipping DB insert`);
@@ -463,7 +585,27 @@ io.on('connection', (socket) => {
     socket.on('disconnect', async () => {
         console.log(`[CONNECTION] Client disconnected: ${socket.id}`);
 
-        // Complete the session when the VR device disconnects (safety net if SESSION_END was not received)
+        // Remove this socket from the dual-device waiting room if it was still pending
+        if (socket.patientUuid && pendingSessions[socket.patientUuid]) {
+            const pending = pendingSessions[socket.patientUuid];
+            if (pending.vrSocketId === socket.id) {
+                pending.vrReady    = false;
+                pending.vrDeviceId = null;
+                pending.vrSocketId = null;
+                console.log(`[DUAL-DEVICE] VR disconnected before session started for patient ${socket.nationalId}`);
+            } else if (pending.watchSocketId === socket.id) {
+                pending.watchReady    = false;
+                pending.watchDeviceId = null;
+                pending.watchSocketId = null;
+                console.log(`[DUAL-DEVICE] Watch disconnected before session started for patient ${socket.nationalId}`);
+            }
+            // Remove the pending slot entirely once no devices remain registered
+            if (!pending.vrReady && !pending.watchReady) {
+                delete pendingSessions[socket.patientUuid];
+            }
+        }
+
+        // Complete the session when a device disconnects (safety net if SESSION_END was not received)
         if (socket.patientUuid) {
             const sessionData = activeSessions[socket.patientUuid];
             if (sessionData) {

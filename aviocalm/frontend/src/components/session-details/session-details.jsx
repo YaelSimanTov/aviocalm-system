@@ -42,7 +42,7 @@ const STAGE_NAMES = {
   TakeOffState:  'Takeoff',
   InFlightState: 'Cruising',
   LandingState:  'Landing',
-  LandedState:   'Landed',
+  LandedState:   'Disembarkation',
   PausedState:   'Paused',
 };
 
@@ -51,7 +51,7 @@ const LEGEND_STAGES = [
   { state: 'TakeOffState',  label: 'Takeoff'   },
   { state: 'InFlightState', label: 'Cruising'  },
   { state: 'LandingState',  label: 'Landing'   },
-  { state: 'LandedState',   label: 'Landed' },
+  { state: 'LandedState',   label: 'Disembarkation' },
 ];
 
 // ─── Timestamp normalisation utility ─────────────────────────────────────────
