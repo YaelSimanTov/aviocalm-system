@@ -114,21 +114,21 @@
     background-color: #2563eb;
   }
   
-  /* Empty State */
+   
   .therapist-list__empty {
     text-align: center;
     padding: 3rem;
   }
-  /* מאפשר לתפריט לצאת מגבולות השורה */
+  
 .therapist-list__table-container {
   overflow: visible !important;
 }
 
 .therapist-list__table {
-  border-collapse: separate; /* עוזר במניעת חיתוך */
+  border-collapse: separate;  
 }
 
-/* מוודא שהתא של הפעולות לא חותך תוכן */
+ 
 .therapist-list__row td:last-child {
   overflow: visible !important;
 }

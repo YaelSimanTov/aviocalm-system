@@ -28,27 +28,53 @@ const COLORS = {
 
 // VR flight-phase background fills — reserved exclusively for ReferenceArea blocks
 const VR_STATE_COLORS = {
-  BoardingState: '#dbeafe',
+  Boarding:      '#dbeafe',
   TakeOffState:  '#fed7aa',
   InFlightState: '#a7f3d0',
   LandingState:  '#e9d5ff',
   LandedState:   '#cbd5e1',
   PausedState:   '#e5e7eb',
+  Preparation:   '#FFFFFF',
   Default:       '#f3f4f6',
 };
 
 const STAGE_NAMES = {
-  BoardingState: 'Boarding',
-  TakeOffState:  'Takeoff',
+  Boarding:      'Boarding',
+  TakeOffState:  'TakeOff',
   InFlightState: 'Cruising',
   LandingState:  'Landing',
   LandedState:   'Disembarkation',
   PausedState:   'Paused',
+  Preparation:   'Preparation',
+};
+
+// Normalizes both raw Unity state names and display-friendly aliases to the canonical
+// VR_STATE_COLORS key. Ensures phase background fills resolve correctly regardless of
+// whether the stored vr_events message contains the raw enum ('BoardingState') or
+// the label name ('Boarding' / 'Cruising').
+const VR_STATE_KEY_MAP = {
+  // Raw Unity enum names
+  BoardingState:  'Boarding',
+  TakeOffState:   'TakeOffState',
+  InFlightState:  'InFlightState',
+  LandingState:   'LandingState',
+  LandedState:    'LandedState',
+  PausedState:    'PausedState',
+  // Unknown / missing state maps to Preparation so it always gets a background color
+  Unknown:        'Preparation',
+  // Display-friendly aliases
+  Boarding:       'Boarding',
+  Takeoff:        'TakeOffState',
+  Cruising:       'InFlightState',
+  Landing:        'LandingState',
+  Disembarkation: 'LandedState',
+  Paused:         'PausedState',
+  Preparation:    'Preparation',
 };
 
 const LEGEND_STAGES = [
-  { state: 'BoardingState', label: 'Boarding'  },
-  { state: 'TakeOffState',  label: 'Takeoff'   },
+  { state: 'Boarding',     label: 'Boarding'  },
+  { state: 'TakeOffState',  label: 'TakeOff'   },
   { state: 'InFlightState', label: 'Cruising'  },
   { state: 'LandingState',  label: 'Landing'   },
   { state: 'LandedState',   label: 'Disembarkation' },
@@ -77,53 +103,55 @@ const ALERT_ANNOTATION_COLORS = {
 };
 
 // ─── Helper: VR phase blocks for ReferenceArea backgrounds ───────────────────
-// Uses explicit [Flight Phase] VR events as the source of truth for phase start times.
-// Data before the first logged phase event renders with no background (pre-flight neutral).
+// Derives contiguous background intervals directly from the vrState field that
+// is already present on each aggregated chartData point — the same field the
+// tooltip reads — so block boundaries are always pixel-perfect regardless of
+// whether the aggregation resolution is 30 s, 1 min, or any other interval.
+//
+//   • endX of block i === startX of block i+1  →  zero gaps guaranteed
+//   • Null / undefined / 'Unknown' vrState     →  'Preparation' phase
+//   • Works at any dynamic X-axis resolution
+function generateVrPhaseBlocks(chartData) {
+  if (!chartData || chartData.length === 0) return [];
 
-function generateVrPhaseBlocks(timeSeriesData, vrEvents) {
-  if (!timeSeriesData || timeSeriesData.length === 0) return [];
+  // Resolve the canonical VR_STATE_COLORS key for a single data point.
+  // Routes raw → canonical (VR_STATE_KEY_MAP) so that any Unity enum name or
+  // display alias (e.g., 'InFlightState' or 'Cruising') all map to the same key.
+  // Null, undefined, and 'Unknown' all map to the neutral Preparation fill.
+  const resolveState = (raw) => {
+    if (!raw || raw === 'Unknown') return 'Preparation';
+    const canonical = VR_STATE_KEY_MAP[raw] ?? raw;
+    return canonical;
+  };
 
-  // Parse the Unity state name from [Flight Phase] event messages
-  const PHASE_REGEX = /Phase changed to:\s*(\w+)/;
-  const phaseEvents = (vrEvents ?? [])
-    .filter((e) => e.tag === '[Flight Phase]')
-    .map((e) => {
-      const match = PHASE_REGEX.exec(e.message);
-      return match ? { state: match[1], timestampMs: toUtcMs(e.timestamp) } : null;
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.timestampMs - b.timestampMs);
-
-  if (phaseEvents.length === 0) return [];
-
-  // Map each phase event to the nearest dataIndex in timeSeriesData
-  const phaseAtIndex = phaseEvents.map(({ state, timestampMs }) => {
-    let bestIdx  = 0;
-    let bestDiff = Infinity;
-    timeSeriesData.forEach((pt, i) => {
-      const diff = Math.abs(toUtcMs(pt.timestamp) - timestampMs);
-      if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
-    });
-    return { state, dataIndex: bestIdx };
-  });
-
-  // Build contiguous blocks: each block spans from its phase event index to just before the next
   const blocks = [];
-  for (let i = 0; i < phaseAtIndex.length; i++) {
-    const { state, dataIndex: startIdx } = phaseAtIndex[i];
-    const endIdx = i + 1 < phaseAtIndex.length
-      ? phaseAtIndex[i + 1].dataIndex - 1
-      : timeSeriesData.length - 1;
-    if (endIdx >= startIdx) {
+  let currentState = resolveState(chartData[0].vrState);
+  let startX       = 0;
+
+  for (let i = 1; i < chartData.length; i++) {
+    const state = resolveState(chartData[i].vrState);
+    if (state !== currentState) {
+      // Close the outgoing block exactly at index i so that endX of this block
+      // equals startX of the next — no gap, no overlap.
       blocks.push({
-        startIndex: startIdx,
-        endIndex:   endIdx,
-        color:      VR_STATE_COLORS[state] ?? null,
+        startX,
+        endX:  i,
+        color: VR_STATE_COLORS[currentState] ?? VR_STATE_COLORS.Default,
       });
+      currentState = state;
+      startX       = i;
     }
   }
 
-  return blocks;
+  // Close the final block at the last data point.
+  blocks.push({
+    startX,
+    endX:  chartData.length - 1,
+    color: VR_STATE_COLORS[currentState] ?? VR_STATE_COLORS.Default,
+  });
+
+  // A block where startX === endX is invisible in Recharts; filter it out.
+  return blocks.filter((b) => b.endX > b.startX);
 }
 
 // ─── Helper: map alert breach window to nearest time-series dataIndex values ──
@@ -279,6 +307,17 @@ function SessionEventTimeline({ sessionAlerts, vrEvents }) {
     });
   };
 
+  // Replaces raw Unity state enum names inside [Flight Phase] log messages with
+  // their display-friendly equivalents so the user always sees 'Cruising'
+  // instead of 'InFlightState', 'Boarding' instead of 'BoardingState', etc.
+  const translatePhaseDescription = (description, tag) => {
+    if (tag !== '[Flight Phase]') return description;
+    return description.replace(
+      /\b(BoardingState|TakeOffState|InFlightState|LandingState|LandedState|PausedState)\b/g,
+      (rawState) => STAGE_NAMES[rawState] ?? rawState
+    );
+  };
+
   return (
     <div className="flex flex-col h-full">
       <h2 className="text-sm font-semibold text-gray-700 mb-2">Session Timeline</h2>
@@ -297,7 +336,7 @@ function SessionEventTimeline({ sessionAlerts, vrEvents }) {
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-gray-800 break-words leading-relaxed">{event.description}</p>
+                  <p className="text-xs font-medium text-gray-800 break-words leading-relaxed">{translatePhaseDescription(event.description, event.tag)}</p>
                   <p className="text-xs text-gray-500 mt-1">{getLabel(event.type, event.tag)}</p>
                 </div>
                 <p className="text-xs text-gray-400 font-mono whitespace-nowrap">{formatTime(event.timestamp)}</p>
@@ -377,7 +416,7 @@ export function SessionDetails() {
   // ── Chart data ──────────────────────────────────────────────────────────────
 
   const chartData = analyticsData?.timeSeriesData?.map((d, i) => ({ ...d, dataIndex: i })) ?? [];
-  const vrBlocks  = generateVrPhaseBlocks(chartData, vrEvents);
+  const vrBlocks  = generateVrPhaseBlocks(chartData);
 
   // Derive session start date from route state, or fall back to first analytics point
   const sessionDate = sessionNavState?.started_at
@@ -559,12 +598,12 @@ export function SessionDetails() {
               <ResponsiveContainer width="100%" height={500}>
                 <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 40 }}>
 
-                  {/* VR phase background fills — only rendered for known states; null-color blocks (pre-flight) are skipped */}
-                  {vrBlocks.filter((b) => b.color).map((block, i) => (
+                  {/* VR phase background fills — all blocks have a color; Pre-Flight uses the Default fill */}
+                  {vrBlocks.map((block, i) => (
                     <ReferenceArea
                       key={`bg-${i}`}
-                      x1={block.startIndex}
-                      x2={block.endIndex}
+                      x1={block.startX}
+                      x2={block.endX}
                       yAxisId="left"
                       fill={block.color}
                       fillOpacity={0.7}
@@ -662,7 +701,11 @@ export function SessionDetails() {
                     content={({ payload }) => {
                       if (!payload || payload.length === 0) return null;
                       const d = payload[0].payload;
-                      const stageName = STAGE_NAMES[d.vrState] || d.vrState || 'Unknown';
+                      // Chain raw vrState → canonical key → display name so that any
+                      // Unity enum ('InFlightState') or alias ('Cruising') both resolve
+                      // to the same human-readable label ('Cruising').
+                      const resolvedKey = VR_STATE_KEY_MAP[d.vrState] ?? d.vrState;
+                      const stageName   = STAGE_NAMES[resolvedKey] || resolvedKey || 'Unknown';
 
                       const toTime = (iso) =>
                         new Date(toUtcMs(iso)).toLocaleTimeString([], {

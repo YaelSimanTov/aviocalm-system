@@ -1,13 +1,12 @@
 const processCalibration = (currentHeartRate, historicalBaseline) => {
     
-    // Prevent zero division/errors if watch isn't connected yet
+    // Watch not connected or no HR data received yet — block calibration
     if (currentHeartRate === 0) {
         return {
-            event: "CALIBRATION_SETUP",
-            payload: { 
-                durationSeconds: 180, 
-                startMessage: "Welcome to AvioCalm. The system is now synchronizing your personal metrics. Take a few minutes to relax and enjoy the view.",
-                endMessage: "Synchronization completed successfully. We will now move on to a short tutorial, and then we are ready to take off."
+            event: "WAITING_FOR_WATCH",
+            payload: {
+                status: "waiting",
+                message: "Watch not connected or no heart rate data received yet. Please ensure the smartwatch is worn and connected."
             }
         };
     }

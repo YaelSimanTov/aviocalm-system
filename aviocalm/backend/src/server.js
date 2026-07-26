@@ -81,7 +81,7 @@ app.get('/api/health', (req, res) => {
 
 // 1. Define Enums matching Unity's structure
 const FlightState = {
-    BOARDING: 'BoardingState',
+    BOARDING: 'Boarding',
     TAKE_OFF: 'TakeOffState',
     IN_FLIGHT: 'InFlightState',
     LANDING: 'LandingState',
@@ -246,7 +246,11 @@ io.on('connection', (socket) => {
             const payload = typeof data === 'string' ? JSON.parse(data) : data;
             const deviceInfo = await getPatientByDevice(payload.deviceId);
             const patientId = deviceInfo ? deviceInfo.patient_uuid : null;
-            if (!patientId) return;
+            if (!patientId) {
+                console.error(`[SESSION START] Device ${payload.deviceId} is not assigned to any patient — rejecting SESSION_START`);
+                socket.emit('SESSION_ERROR', { code: 'DEVICE_UNASSIGNED', message: `Device ${payload.deviceId} is not assigned to any patient.` });
+                return;
+            }
 
             // Bind socket metadata now so the disconnect handler can identify this socket
             socket.deviceId    = payload.deviceId;
@@ -276,6 +280,15 @@ io.on('connection', (socket) => {
             console.log(`[DUAL-DEVICE] VR device ${payload.deviceId} ready for patient ${deviceInfo.national_id} — waiting for Watch`);
 
             await tryInitiateSession(patientId, deviceInfo.national_id);
+
+            // Emit feedback if session was not yet created because watch is not connected
+            if (!activeSessions[patientId]) {
+                console.log(`[SESSION START] VR ready, waiting for Watch for patient ${deviceInfo.national_id}...`);
+                socket.emit('SESSION_WAITING', {
+                    status: 'waiting',
+                    message: 'VR headset registered. Waiting for smartwatch to connect before starting session.'
+                });
+            }
         } catch (err) {
             console.error(`[SESSION START ERROR] ${err.message}`);
         }
@@ -357,15 +370,15 @@ io.on('connection', (socket) => {
             // Keep per-session VR state in sync for biometric pairing
             if (sessionId) {
                 if (!sessionVrState[sessionId]) {
-                    sessionVrState[sessionId] = { state: FlightState.BOARDING, difficulty: LevelDiff.NONE };
+                    sessionVrState[sessionId] = { state: 'Preparation', difficulty: LevelDiff.NONE };
                 }
                 if (vrTag === '[Flight Phase]' && vrMessage.includes('Phase changed to:')) {
-                    const extractedState = vrMessage.split('Phase changed to:')[1].trim();
+                    const extractedState = vrMessage.split('Phase changed to:')[1].trim().split(/\s+/)[0];
                     if (Object.values(FlightState).includes(extractedState)) {
                         sessionVrState[sessionId].state = extractedState;
                     }
                 } else if (vrTag === '[System Event]' && vrMessage.includes('Difficulty Level:')) {
-                    const extractedDiff = vrMessage.split('Difficulty Level:')[1].trim();
+                    const extractedDiff = vrMessage.split('Difficulty Level:')[1].trim().split(/\s+/)[0];
                     if (Object.values(LevelDiff).includes(extractedDiff)) {
                         sessionVrState[sessionId].difficulty = extractedDiff;
                     }
@@ -394,12 +407,22 @@ io.on('connection', (socket) => {
             // Fallback VR-ready registration for Unity clients that skip SESSION_START
             await markVrReadyIfPending(socket, patientId, payload.deviceId, deviceInfo.national_id);
 
+            // Guard: calibration MUST NOT start unless the watch is connected AND has sent HR data
+            const watchConnected = pendingSessions[patientId]?.watchReady || !!activeSessions[patientId];
+            const startingHR = latestPatientHR[patientId] || 0;
+            if (!watchConnected || startingHR === 0) {
+                console.log(`[CALIBRATION] Watch not ready or no HR data for patient ${deviceInfo.national_id} — emitting WAITING_FOR_WATCH (watchConnected=${watchConnected}, HR=${startingHR})`);
+                socket.emit('WAITING_FOR_WATCH', {
+                    status: 'waiting',
+                    message: 'Watch not connected or no heart rate data received yet. Please ensure the smartwatch is worn and connected.'
+                });
+                return;
+            }
+
             console.log(`[CALIBRATION] Starting for patient: ${patientId}`);
             activeCalibrations[patientId] = [];
 
             const historicalBaseline = await getPatientBaseline(patientId) || 72;
-            const startingHR = latestPatientHR[patientId] || 0;
-
             const response = processCalibration(startingHR, historicalBaseline);
             socket.emit(response.event, response.payload);
         } catch (err) {
@@ -539,7 +562,7 @@ io.on('connection', (socket) => {
                 patientId:      sessionData.nationalId,
                 sessionId:      sessionData.sessionId,
                 timestamp,
-                vrState:        sessionVrState[sessionData.sessionId]?.state      ?? 'Unknown',
+                vrState:        sessionVrState[sessionData.sessionId]?.state      ?? 'Preparation',
                 difficulty:     sessionVrState[sessionData.sessionId]?.difficulty ?? LevelDiff.NONE,
                 vitals:         { heartRate, stressScore, spo2, ibiData },
                 therapistAction: 'None'
@@ -626,6 +649,8 @@ io.on('connection', (socket) => {
                     console.error(`[SESSION] Error completing session on disconnect:`, error);
                 } finally {
                     delete activeSessions[socket.patientUuid];
+                    delete latestPatientHR[socket.patientUuid];
+                    delete activeCalibrations[socket.patientUuid];
                     console.log(`[SESSION] Removed active session for patient ${socket.nationalId} from tracker`);
                 }
             }

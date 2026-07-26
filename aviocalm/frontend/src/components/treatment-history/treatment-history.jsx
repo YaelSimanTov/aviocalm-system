@@ -201,7 +201,10 @@ export const TreatmentHistory = ({ patientId }) => {
                     <td className="treatment-history__table-cell">
                       {Array.isArray(session.difficulties) && session.difficulties.length > 0 ? (
                         <div className="flex gap-1 flex-wrap">
-                          {session.difficulties.map((difficulty, index) => (
+                          {(session.difficulties.length > 1
+                            ? session.difficulties.filter((d) => d !== 'None')
+                            : session.difficulties
+                          ).map((difficulty, index) => (
                             <span
                               key={index}
                               className={`px-2 py-1 rounded-full text-xs font-medium ${

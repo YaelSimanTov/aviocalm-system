@@ -112,7 +112,7 @@ const TherapistList = () => {
 
   return (
     <div className="therapist-list p-6 pt-24">
-      {/* שורת החיפוש */}
+       
       <div className="mb-8 mt-4 flex justify-center">
         <div className="relative w-full max-w-lg">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -176,8 +176,8 @@ const TherapistList = () => {
                           <div className="my-1 border-t border-slate-100"></div>
                           <button
                             onClick={() => {
-                              setTherapistToDelete(t.username); // 🔥 שומר את המשתמש למחיקה
-                              setIsDeleteModalOpen(true); // 🔥 פותח את המודאל
+                              setTherapistToDelete(t.username);  
+                              setIsDeleteModalOpen(true);  
                               setOpenMenuId(null);
                             }}
                             className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
@@ -195,12 +195,10 @@ const TherapistList = () => {
         )}
       </div>
 
-      {/* מודאלים */}
       <PasswordResetModal isOpen={isResetOpen} data={resetData} onClose={() => setIsResetOpen(false)} />
       <EditTherapistModal isOpen={isEditOpen} therapist={editingTherapist} onClose={() => setIsEditOpen(false)} onSave={handleEditSave} />
 
-      {/* 🔥 המודאל החדש של המחיקה */}
-      <DeleteConfirmModal
+       <DeleteConfirmModal
         isOpen={isDeleteModalOpen}
         username={therapistToDelete}
         onClose={() => setIsDeleteModalOpen(false)}
