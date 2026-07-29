@@ -620,11 +620,14 @@ export function SessionDetails() {
                       alert.timestamp, alert.duration_seconds, chartData
                     );
                     const color = ALERT_ANNOTATION_COLORS[alert.alert_type] ?? '#6b7280';
+                    // Recharts silently skips a ReferenceArea where x1 === x2 (zero-width).
+                    // Clamp ribbonEnd to at least startIdx + 1 so short alerts always render.
+                    const ribbonEnd = endIdx > startIdx ? endIdx : startIdx + 1;
                     return (
                       <ReferenceArea
                         key={`ribbon-${alert.id}`}
                         x1={startIdx}
-                        x2={endIdx}
+                        x2={ribbonEnd}
                         y1={95}
                         y2={100}
                         yAxisId="ribbonAxis"
@@ -782,10 +785,10 @@ export function SessionDetails() {
                       <React.Fragment key={`alert-${alert.id}`}>
                         {/* Solid vertical line at breach start */}
                         <ReferenceLine x={startIdx} yAxisId="left" stroke={color} strokeWidth={2} />
-                        {/* Dashed vertical line at breach end (omitted when same data point) */}
-                        {endIdx !== startIdx && (
-                          <ReferenceLine x={endIdx} yAxisId="left" stroke={color} strokeWidth={1.5} strokeDasharray="4 3" />
-                        )}
+                        {/* Dashed vertical line at breach end — always rendered to guarantee
+                            2 markers per alert. When startIdx === endIdx (alert shorter than
+                            one chart bucket) both lines overlap at the same x position. */}
+                        <ReferenceLine x={endIdx} yAxisId="left" stroke={color} strokeWidth={1.5} strokeDasharray="4 3" />
                         {/* Interactive dot — only rendered when the chart has a valid HR reading
                             at the alert position so it is never placed off-screen. */}
                         {hrValue !== null && (

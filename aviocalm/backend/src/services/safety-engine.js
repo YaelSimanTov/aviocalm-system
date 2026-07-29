@@ -109,12 +109,13 @@ class SafetyEngine {
     const currentTime = Date.now();
     const channel = this.channelStates.absoluteSafety;
     
-    // Check absolute threshold violations
-    const hrViolation = metrics.heartRate > this.thresholds.maxHeartRate;
+    // Check absolute threshold violations — HR and SpO2 only.
+    // Stress is handled exclusively by the combinedPanic channel to avoid
+    // false-positive Safety alerts when only the stress score is elevated.
+    const hrViolation   = metrics.heartRate > this.thresholds.maxHeartRate;
     const spo2Violation = metrics.spo2 < this.thresholds.minSpO2;
-    const stressViolation = metrics.stressScore > this.thresholds.maxStress;
     
-    const hasViolation = hrViolation || spo2Violation || stressViolation;
+    const hasViolation = hrViolation || spo2Violation;
     
     if (hasViolation) {
       // Start or continue violation tracking
@@ -123,9 +124,8 @@ class SafetyEngine {
         channel.startTime = currentTime;
         channel.triggeredBy = [];
         
-        if (hrViolation) channel.triggeredBy.push(`HR > ${this.thresholds.maxHeartRate}`);
+        if (hrViolation)   channel.triggeredBy.push(`HR > ${this.thresholds.maxHeartRate}`);
         if (spo2Violation) channel.triggeredBy.push(`SpO2 < ${this.thresholds.minSpO2}`);
-        if (stressViolation) channel.triggeredBy.push(`Stress > ${this.thresholds.maxStress}`);
         
         console.log(`[SAFETY ENGINE] Absolute Safety Channel VIOLATION START: ${channel.triggeredBy.join(', ')}`);
       }

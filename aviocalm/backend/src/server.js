@@ -81,7 +81,7 @@ app.get('/api/health', (req, res) => {
 
 // 1. Define Enums matching Unity's structure
 const FlightState = {
-    BOARDING: 'Boarding',
+    BOARDING: 'BoardingState',
     TAKE_OFF: 'TakeOffState',
     IN_FLIGHT: 'InFlightState',
     LANDING: 'LandingState',
