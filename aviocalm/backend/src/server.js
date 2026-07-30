@@ -158,6 +158,10 @@ async function tryInitiateSession(patientId, nationalId) {
     }
 
     console.log(`[DUAL-DEVICE] Both VR and Watch confirmed for patient ${nationalId} — initiating session`);
+
+    // Capture VR socket ID before clearing the pending slot
+    const vrSocketId = pending.vrSocketId;
+
     try {
         const newSessionId = await createNewSession(patientId);
         activeSessions[patientId] = { nationalId, sessionId: newSessionId };
@@ -169,6 +173,22 @@ async function tryInitiateSession(patientId, nationalId) {
 
     // Clear the pending slot now that the session is active
     delete pendingSessions[patientId];
+
+    // Both devices are now confirmed — push CALIBRATION_SETUP directly to the waiting VR headset
+    // so Unity is unblocked without needing to re-emit CALIBRATION_START
+    if (vrSocketId) {
+        try {
+            const startingHR = latestPatientHR[patientId] || 0;
+            const historicalBaseline = await getPatientBaseline(patientId) || 72;
+            const response = processCalibration(startingHR, historicalBaseline);
+            if (response.event === 'CALIBRATION_SETUP') {
+                io.to(vrSocketId).emit(response.event, response.payload);
+                console.log(`[CALIBRATION] Auto-pushed CALIBRATION_SETUP to VR socket ${vrSocketId} for patient ${nationalId} (durationSeconds=${response.payload.durationSeconds})`);
+            }
+        } catch (calErr) {
+            console.error(`[CALIBRATION] Failed to auto-push CALIBRATION_SETUP for patient ${nationalId}: ${calErr.message}`);
+        }
+    }
 }
 
 /**
@@ -221,6 +241,77 @@ const activeCalibrations = {};
 // 5. Latest HR cache: patient_uuid -> most recent heart rate (BPM)
 // Used to seed CALIBRATION_START before the first watch packet arrives
 const latestPatientHR = {};
+
+// ==========================================
+// Development / Testing: VR Bypass Endpoint
+// ==========================================
+// POST /api/debug/vr-ready
+// Marks the VR side as ready in the dual-device waiting room WITHOUT a physical
+// VR headset being connected. This unblocks calibration when testing watch-only.
+// ONLY active when BYPASS_VR_REQUIREMENT=true is set in .env.
+// Usage:  POST http://localhost:<PORT>/api/debug/vr-ready
+//         Body: { "nationalId": "325181295" }
+app.post('/api/debug/vr-ready', async (req, res) => {
+    if (process.env.BYPASS_VR_REQUIREMENT !== 'true') {
+        return res.status(403).json({
+            success: false,
+            error: 'VR bypass is disabled. Add BYPASS_VR_REQUIREMENT=true to .env to enable this endpoint.'
+        });
+    }
+
+    const { nationalId } = req.body;
+    if (!nationalId) {
+        return res.status(400).json({ success: false, error: 'nationalId is required in the request body.' });
+    }
+
+    // Check if a session is already active for this patient (nothing to bypass)
+    const activeKey = Object.keys(activeSessions).find(
+        k => String(activeSessions[k].nationalId) === String(nationalId)
+    );
+    if (activeKey) {
+        return res.json({
+            success: true,
+            message: `Session already active for patient ${nationalId}.`,
+            sessionId: activeSessions[activeKey].sessionId
+        });
+    }
+
+    // Find the pending slot for this patient by nationalId
+    const patientId = Object.keys(pendingSessions).find(
+        k => String(pendingSessions[k].nationalId) === String(nationalId)
+    );
+
+    if (!patientId) {
+        return res.status(404).json({
+            success: false,
+            error: `No pending session found for patient ${nationalId}. Ensure the watch is connected and sending vitals first.`
+        });
+    }
+
+    // Inject VR-ready flag with no physical socket (bypass mode).
+    // vrSocketId is intentionally null — tryInitiateSession will skip the
+    // CALIBRATION_SETUP auto-push (guarded by `if (vrSocketId)`), but the
+    // DB session is created and watch vitals start being persisted normally.
+    pendingSessions[patientId].vrReady    = true;
+    pendingSessions[patientId].vrDeviceId = 'bypass-no-vr';
+    pendingSessions[patientId].vrSocketId = null;
+    console.log(`[DUAL-DEVICE][BYPASS] VR marked ready (no headset) for patient ${nationalId} via debug endpoint`);
+
+    await tryInitiateSession(patientId, String(nationalId));
+
+    if (activeSessions[patientId]) {
+        return res.json({
+            success: true,
+            message: `Session created for patient ${nationalId}. Watch vitals will now be persisted to the DB.`,
+            sessionId: activeSessions[patientId].sessionId
+        });
+    }
+
+    return res.status(500).json({
+        success: false,
+        error: 'tryInitiateSession ran but no session was created. Check server logs for DB errors.'
+    });
+});
 
 // ==========================================
 // Mock Data Generator for ActiveMonitor Testing
@@ -513,6 +604,8 @@ io.on('connection', (socket) => {
                                     pendingSessions[socket.patientUuid].watchSocketId = socket.id;
                                     pendingSessions[socket.patientUuid].nationalId    = deviceInfo.national_id;
                                     console.log(`[DUAL-DEVICE] Watch device ${currentDeviceId} ready for patient ${deviceInfo.national_id} — waiting for VR`);
+                                    // Cache the first HR reading early so tryInitiateSession can use it for auto-calibration
+                                    latestPatientHR[socket.patientUuid] = heartRate;
                                     await tryInitiateSession(socket.patientUuid, deviceInfo.national_id);
                                 }
                             }
