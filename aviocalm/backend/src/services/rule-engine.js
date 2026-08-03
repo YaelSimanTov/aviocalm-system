@@ -26,7 +26,7 @@ const { SafetyEngine }            = require('./safety-engine');
 
 // Number of leading samples used purely for calibration.
 // Set to 10 so the 60-second simulation can demonstrate alerts;
-// change to 180 (3 minutes) for production deployments.
+// change to 300 (5 minutes) for production deployments.
 const BASELINE_WINDOW_SECONDS = 10;
 
 // Maps SafetyEngine channel keys to the alert_type enum stored in the DB

@@ -29,7 +29,7 @@ const processCalibration = (currentHeartRate, historicalBaseline) => {
     return {
         event: "CALIBRATION_SETUP",
         payload: { 
-            durationSeconds: 180, 
+            durationSeconds: 300, 
             startMessage: "Welcome to AvioCalm. The system is now synchronizing your personal metrics. Take a few minutes to relax and enjoy the view.",
             endMessage: "Synchronization completed successfully. We will now move on to a short tutorial, and then we are ready to take off."
         }
