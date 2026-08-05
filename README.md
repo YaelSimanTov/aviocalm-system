@@ -23,6 +23,7 @@
 - [System Architecture & Flow](#-system-architecture--flow)
 - [Key Engineering Features](#-key-engineering-features)
 - [Tech Stack](#-tech-stack)
+- [Related Repositories](#-related-repositories)
 - [Project Structure](#-project-structure)
 - [Getting Started](#-getting-started)
   - [Prerequisites](#prerequisites)
@@ -137,6 +138,17 @@ To keep the React chart rendering smooth regardless of data volume, the analytic
 | **VR Platform** | Unity (C#) |
 | **Smartwatch** | Samsung Galaxy Watch — Wear OS / Android Studio |
 | **Tunnel (Dev)** | ngrok |
+
+---
+
+## 🔗 Related Repositories
+
+The AvioCalm system spans multiple repositories. The hardware client applications that communicate with this backend are maintained separately:
+
+| Component | Repository |
+|---|---|
+| **Unity VR Application** | [YaelSimanTov/aviocalm-unity](https://github.com/YaelSimanTov/aviocalm-unity) |
+| **Wear OS Smartwatch Application** | [YaelSimanTov/aviocalm-smart-watch](https://github.com/YaelSimanTov/aviocalm-smart-watch) |
 
 ---
 
