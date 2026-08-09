@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../utils/api';
+import DateInputDDMMYYYY from '../shared/DateInputDDMMYYYY';
 import './add-patient-form.css';
 
 export const AddPatientForm = () => {
@@ -81,6 +82,8 @@ export const AddPatientForm = () => {
       
       if (!formData.date_of_birth.trim()) {
         newErrors.date_of_birth = 'Date of birth is required';
+      } else if (formData.date_of_birth === 'INVALID_DATE') {
+        newErrors.date_of_birth = 'Please enter a valid date in DD/MM/YYYY format';
       }
       
       if (!formData.phone.trim()) {
@@ -370,15 +373,14 @@ export const AddPatientForm = () => {
                 <label htmlFor="date_of_birth" className="add-patient-form__label">
                   Date of Birth *
                 </label>
-                <input
+                <DateInputDDMMYYYY
                   id="date_of_birth"
                   name="date_of_birth"
-                  type="date"
                   required
                   className={`add-patient-form__input ${
                     errors.date_of_birth ? 'add-patient-form__input--error' : ''
                   }`}
-                  value={formData.date_of_birth ? formData.date_of_birth.split('T')[0] : ''}
+                  value={formData.date_of_birth}
                   onChange={handleChange}
                 />
                 {errors.date_of_birth && (

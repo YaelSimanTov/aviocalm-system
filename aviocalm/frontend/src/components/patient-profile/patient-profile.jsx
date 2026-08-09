@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { apiRequest } from '../../utils/api';
 import { TreatmentHistory } from '../treatment-history/treatment-history';
+import DateInputDDMMYYYY from '../shared/DateInputDDMMYYYY';
 import './patient-profile.css';
 
 export const PatientProfile = () => {
@@ -127,6 +128,8 @@ export const PatientProfile = () => {
     
     if (!formData.date_of_birth || formData.date_of_birth.trim() === '') {
       errors.date_of_birth = 'Date of birth is required';
+    } else if (formData.date_of_birth === 'INVALID_DATE') {
+      errors.date_of_birth = 'Please enter a valid date in DD/MM/YYYY format';
     }
     
     // National ID format validation (numbers only)
@@ -612,10 +615,10 @@ export const PatientProfile = () => {
                     <div className="patient-profile__form-row">
                       <div className="patient-profile__form-field">
                         <label className="patient-profile__label">Date of Birth *</label>
-                        <input
-                          type="date"
+                        <DateInputDDMMYYYY
+                          id="date_of_birth"
                           name="date_of_birth"
-                          value={formData.date_of_birth ? formData.date_of_birth.split('T')[0] : ''}
+                          value={formData.date_of_birth}
                           onChange={handleInputChange}
                           disabled={!isEditing}
                           className={`patient-profile__input ${formErrors.date_of_birth ? 'patient-profile__input--error' : ''}`}

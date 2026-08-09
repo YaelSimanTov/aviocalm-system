@@ -113,14 +113,14 @@ const TherapistList = () => {
   return (
     <div className="therapist-list p-6 pt-24">
        
-      <div className="mb-8 mt-4 flex justify-center">
-        <div className="relative w-full max-w-lg">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-slate-400" />
+      <div className="mb-8 mt-4 bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+        <div className="relative max-w-xl mx-auto">
+          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+            <Search className="h-5 w-5 text-gray-500" />
           </div>
           <input
             type="text"
-            className="block w-full pl-10 pr-3 py-3 border border-slate-200 rounded-2xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm text-sm"
+            className="w-full pl-10 pr-3 py-3 border-2 border-gray-200 rounded-lg text-sm bg-gray-50 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10 transition-all"
             placeholder="Search by username or name..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -138,11 +138,11 @@ const TherapistList = () => {
           <table className="therapist-list__table w-full">
             <thead className="bg-slate-50/50">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Username</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Full Name</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Phone</th>
-                <th className="px-6 py-4 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Username</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Full Name</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Email</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Phone</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

@@ -291,7 +291,7 @@ export const PatientList = () => {
                     )}
                   </button>
                 </td>
-                <td className="patient-list__date">{patient.created_at ? new Date(patient.created_at).toLocaleDateString() : 'N/A'}</td>
+                <td className="patient-list__date">{patient.created_at ? new Date(patient.created_at).toLocaleDateString('en-GB') : 'N/A'}</td>
                 <td>
                   <button 
                     onClick={() => handleViewDetails(patient.id)}

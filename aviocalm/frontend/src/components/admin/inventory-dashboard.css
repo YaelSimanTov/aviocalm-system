@@ -159,11 +159,9 @@
 .data-table th {
   padding: 0.75rem 1rem;
   text-align: left;
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #6b7280;
+  color: #374151;
   border-bottom: 1px solid #e5e7eb;
 }
 
