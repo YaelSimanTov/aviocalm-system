@@ -1,0 +1,32 @@
+name: Continuous Integration
+
+ 
+on:
+  push:
+    branches: [ "dev", "dev-*", "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' 
+
+      
+      - name: Install Server Dependencies
+        working-directory: ./server  
+        run: npm ci
+
+      - name: Install Client Dependencies
+        working-directory: ./client  
+        run: npm ci
+
+      - name: Build Client (React)
+        working-directory: ./client
+        run: npm run build
