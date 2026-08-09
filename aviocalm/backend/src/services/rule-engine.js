@@ -25,9 +25,10 @@ const { SafetyEngine }            = require('./safety-engine');
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Number of leading samples used purely for calibration.
-// Set to 10 so the 60-second simulation can demonstrate alerts;
-// change to 300 (5 minutes) for production deployments.
-const BASELINE_WINDOW_SECONDS = 10;
+// 60 samples ≈ 1 minute at the watch's ~1 Hz sampling rate.
+// This window must capture natural resting HR variability so the
+// computed StdDev is realistic before rule evaluation begins.
+const BASELINE_WINDOW_SECONDS = 60;
 
 // Maps SafetyEngine channel keys to the alert_type enum stored in the DB
 const CHANNEL_ALERT_TYPE = {
@@ -211,10 +212,13 @@ async function trackChannel(state, channelKey, channelResult, patientId, session
     // Channel cleared: calculate duration and persist if it meets the threshold
     if (state.openBreaches.has(channelKey)) {
       const breach          = state.openBreaches.get(channelKey);
-      const durationSeconds = Math.round((now.getTime() - breach.startTime.getTime()) / 1000);
-      const meetsThreshold  = durationSeconds >= norms.duration_threshold;
+      const durationSeconds    = Math.round((now.getTime() - breach.startTime.getTime()) / 1000);
+      // Enforce a minimum 30-second sustained duration regardless of the DB value.
+      // This prevents transient noise bursts from being persisted as clinical alerts.
+      const effectiveThreshold = Math.max(norms.duration_threshold, 30);
+      const meetsThreshold     = durationSeconds >= effectiveThreshold;
 
-      console.log(`[RULE ENGINE] *** Breach CLOSED — channel: ${channelKey} | duration: ${durationSeconds}s | threshold: ${norms.duration_threshold}s | will save: ${meetsThreshold}`);
+      console.log(`[RULE ENGINE] *** Breach CLOSED — channel: ${channelKey} | duration: ${durationSeconds}s | threshold: ${effectiveThreshold}s | will save: ${meetsThreshold}`);
 
       if (meetsThreshold) {
         await persistAlert(
@@ -270,12 +274,16 @@ async function processVitalsSample({ sessionId, patientUuid, timestamp, heartRat
       // Used by the Relative Statistical Channel to compute per-sample Z-Scores.
       // Population formula (divide by N, not N-1) is appropriate here because
       // the calibration window IS the full baseline population, not a sample of it.
-      const hrVariance = hrSamples.reduce((sum, val) => sum + (val - avgHr) ** 2, 0) / hrSamples.length;
-      const hrStdDev   = Math.sqrt(hrVariance);
+      const hrVariance      = hrSamples.reduce((sum, val) => sum + (val - avgHr) ** 2, 0) / hrSamples.length;
+      const hrStdDevRaw    = Math.sqrt(hrVariance);
+      // Clamp to a physiological minimum: even the steadiest patient has ≥3 BPM
+      // beat-to-beat variability. Without this, a flat 10-sample window produces a
+      // StdDev near zero, causing normal 2 BPM fluctuations to reach Z ≥ 2.0.
+      const hrStdDev       = Math.max(hrStdDevRaw, 3.0);
 
       state.baseline = { hr: avgHr, stress: avgStress, hrStdDev };
       state.safetyEngine.setPatientBaseline({ avg_resting_hr: avgHr, avg_resting_stress: avgStress, hr_std_dev: hrStdDev });
-      console.log(`[RULE ENGINE] Calibration complete — baseline HR=${avgHr.toFixed(1)}, Stress=${avgStress.toFixed(1)}, HR_StdDev=${hrStdDev.toFixed(2)}. Rule evaluation starts next sample.`);
+      console.log(`[RULE ENGINE] Calibration complete — baseline HR=${avgHr.toFixed(1)}, Stress=${avgStress.toFixed(1)}, HR_StdDev=${hrStdDev.toFixed(2)} (raw=${hrStdDevRaw.toFixed(2)}, min-clamped to 3.0). Rule evaluation starts next sample.`);
 
       await persistBaseline(patientUuid, sessionId, avgHr, avgStress);
     }

@@ -1,6 +1,6 @@
 /**
- * Full Session Simulation Script - Continuous 60-Second Telemetry
- * Generates 60 distinct data points with 4 flight stages to populate
+ * Full Session Simulation Script - Continuous 72-Second Telemetry
+ * Generates 72 distinct data points with 5 flight stages to populate
  * the Session Analytics chart with realistic colored background regions.
  *
  * Architecture:
@@ -20,7 +20,7 @@ const WATCH_DEVICE_ID = '12345';
 // ============================================================
 
 const SERVER_URL          = 'http://localhost:5000';
-const SESSION_DURATION_MS = 60000; // Total session length
+const SESSION_DURATION_MS = 72000; // Total session length
 const VITALS_INTERVAL_MS  = 1000;  // One vitals update per second
 
 /**
@@ -28,17 +28,20 @@ const VITALS_INTERVAL_MS  = 1000;  // One vitals update per second
  * difficulty: null means no difficulty change is emitted for that stage.
  *
  * Alert-generation design:
- *   T=0–11s   Calm boarding — Rule Engine collects the 10-second baseline (HR≈72, Stress≈25).
- *   T=12–47s  Hard TakeOff danger phase — HR spikes to 145 BPM, Stress to 85, SpO2 drops to
+ *   T=0–11s   Preparation (calibration) — calm, zero-offset baseline; Rule Engine collects
+ *             the 10-second baseline window (HR≈70, Stress≈20, SpO2≈99).
+ *   T=12–23s  Boarding — patient enters the aircraft; mild elevation (HR≈72, Stress≈25).
+ *   T=24–59s  Hard TakeOff danger phase — HR spikes to 145 BPM, Stress to 85, SpO2 drops to
  *             88%. This breaches all 3 rule-engine channels simultaneously for ≈36 seconds,
  *             which exceeds the medical_norms duration_threshold of 30 s and guarantees that
  *             Safety, Statistical and Panic alerts are persisted to the alerts table.
- *   T=48–59s  Recovery — metrics return to safe range, closing all open breaches.
+ *   T=60–71s  Recovery — metrics return to safe range, closing all open breaches.
  */
 const STAGES = [
-    { triggerMs: 0,     state: 'BoardingState', difficulty: 'Easy', targetHr: 72,  targetStress: 25, spo2Base: 98 },
-    { triggerMs: 12000, state: 'TakeOffState',  difficulty: 'Hard', targetHr: 145, targetStress: 85, spo2Base: 88 },
-    { triggerMs: 48000, state: 'InFlightState', difficulty: 'Easy', targetHr: 78,  targetStress: 30, spo2Base: 97 },
+    { triggerMs: 0,     state: 'Preparation',  difficulty: null,   targetHr: 70,  targetStress: 20, spo2Base: 99 },
+    { triggerMs: 12000, state: 'BoardingState', difficulty: 'Easy', targetHr: 72,  targetStress: 25, spo2Base: 98 },
+    { triggerMs: 24000, state: 'TakeOffState',  difficulty: 'Hard', targetHr: 145, targetStress: 85, spo2Base: 88 },
+    { triggerMs: 60000, state: 'InFlightState', difficulty: 'Easy', targetHr: 78,  targetStress: 30, spo2Base: 97 },
 ];
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -75,12 +78,12 @@ function createSocket(deviceId, label) {
 }
 
 /**
- * Runs the full 60-second session simulation.
+ * Runs the full 72-second session simulation.
  * @returns {Promise<{vrSocket, watchSocket}>} Open sockets for cleanup
  */
 async function runSimulation() {
     console.log('='.repeat(60));
-    console.log('[SIM] Starting continuous 60-second session simulation');
+    console.log('[SIM] Starting continuous 72-second session simulation');
     console.log(`[SIM] VR Device ID:    ${VR_DEVICE_ID}`);
     console.log(`[SIM] Watch Device ID: ${WATCH_DEVICE_ID}`);
     console.log('='.repeat(60));
@@ -96,7 +99,7 @@ async function runSimulation() {
     // Allow both connections to complete their handshake and session creation
     await delay(1500);
 
-    // Initialize live vitals at the BoardingState baseline
+    // Initialize live vitals at the Preparation stage baseline
     let targetHr      = STAGES[0].targetHr;
     let targetStress  = STAGES[0].targetStress;
     let spo2Base      = STAGES[0].spo2Base;
@@ -123,9 +126,9 @@ async function runSimulation() {
         }, stage.triggerMs);
     }
 
-    console.log('\n[SIM] Live telemetry loop started — 1 vitals update/second for 60 seconds\n');
+    console.log('\n[SIM] Live telemetry loop started — 1 vitals update/second for 72 seconds\n');
 
-    // Vitals loop: fires every 1 second for exactly 60 ticks
+    // Vitals loop: fires every 1 second for exactly 72 ticks
     await new Promise((resolve) => {
         let tick = 0;
 
@@ -163,7 +166,7 @@ async function main() {
         ({ vrSocket, watchSocket } = await runSimulation());
     } finally {
         // Give the last DB write a moment to flush before disconnecting
-        console.log('\n[SIM] 60-second session complete. Waiting 1s for last DB write...');
+        console.log('\n[SIM] 72-second session complete. Waiting 1s for last DB write...');
         await delay(1000);
 
         // Disconnect VR first — triggers completeSession() + HRV save on the server

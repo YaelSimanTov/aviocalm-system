@@ -93,13 +93,13 @@ const toUtcMs = (s) => {
 };
 
 // Per-type colors for alert annotations — severity-based palette.
-// Safety:      Red  (#ef4444) — Critical / absolute danger
-// Panic:       Teal (#14b8a6) — High / sustained anxiety; teal avoids blending with the blue/purple chart lines
-// Statistical: Amber (#f59e0b) — Warning / relative anomaly
+// Safety:      Red    (#ef4444) — Critical / absolute danger
+// Panic:       Green  (#10b981) — High / sustained anxiety
+// Statistical: Orange (#f97316) — Warning / relative anomaly
 const ALERT_ANNOTATION_COLORS = {
-  Safety:     '#ef4444',
-  Panic:      '#14b8a6',
-  Statistical:'#f59e0b',
+  Safety:      '#ef4444',
+  Panic:       '#10b981',
+  Statistical: '#f97316',
 };
 
 // ─── Helper: VR phase blocks for ReferenceArea backgrounds ───────────────────
@@ -349,6 +349,86 @@ function SessionEventTimeline({ sessionAlerts, vrEvents }) {
   );
 }
 
+// ─── Custom Tooltip ───────────────────────────────────────────────────────────
+// Receives Recharts-injected props (active, payload) plus custom props
+// (sessionAlerts, chartData) forwarded via content={<CustomTooltip … />}.
+// Recharts merges them at render time through React.cloneElement.
+
+function CustomTooltip({ active, payload, sessionAlerts = [], chartData = [] }) {
+  if (!active || !payload || payload.length === 0) return null;
+  const d = payload[0].payload;
+
+  const resolvedKey = VR_STATE_KEY_MAP[d.vrState] ?? d.vrState;
+  const stageName   = STAGE_NAMES[resolvedKey] || resolvedKey || 'Unknown';
+
+  const exactTime = new Date(toUtcMs(d.timestamp)).toLocaleTimeString([], {
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
+  });
+
+  const toTime = (iso) =>
+    new Date(toUtcMs(iso)).toLocaleTimeString([], {
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
+    });
+
+  const bucketStart = toUtcMs(d.timestamp);
+  const nextPt      = chartData[d.dataIndex + 1];
+  const bucketEnd   = nextPt ? toUtcMs(nextPt.timestamp) : bucketStart + 30_000;
+
+  const activeAlerts = sessionAlerts.filter((a) => {
+    const alertStart = toUtcMs(a.timestamp);
+    const alertEnd   = alertStart + a.duration_seconds * 1000;
+    return alertStart < bucketEnd && alertEnd > bucketStart;
+  });
+
+  return (
+    <div style={{
+      background: '#ffffff',
+      border: '1px solid #e5e7eb',
+      borderRadius: 10,
+      padding: '10px 14px',
+      boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
+      fontSize: 12,
+      minWidth: 210,
+      maxWidth: 290,
+      lineHeight: 1.6,
+    }}>
+      <p style={{ margin: '0 0 6px', fontWeight: 700, color: '#111827', fontSize: 13, borderBottom: '1px solid #f3f4f6', paddingBottom: 5 }}>
+        {exactTime}
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 6 }}>
+        <p style={{ margin: 0, color: '#3b82f6' }}>❤ HR: <strong>{d.avgHeartRate ?? 'N/A'} BPM</strong></p>
+        <p style={{ margin: 0, color: '#8b5cf6' }}>⚡ Stress: <strong>{d.avgStressScore ?? 'N/A'} / 100</strong></p>
+        <p style={{ margin: 0, color: '#0d9488' }}>💧 SpO₂: <strong>{d.avgSpo2 != null ? `${d.avgSpo2}%` : 'N/A'}</strong></p>
+      </div>
+      <p style={{ margin: 0, color: '#6b7280', fontSize: 11, borderTop: '1px solid #f3f4f6', paddingTop: 5 }}>
+        VR Stage: <strong style={{ color: '#374151' }}>
+          {stageName}{d.difficulty && d.difficulty !== 'None' ? ` (${d.difficulty})` : ''}
+        </strong>
+      </p>
+      {activeAlerts.length > 0 && (
+        <div style={{ borderTop: '1px solid #f3f4f6', marginTop: 6, paddingTop: 6 }}>
+          <p style={{ margin: '0 0 4px', fontWeight: 600, color: '#374151', fontSize: 11 }}>Active Alerts:</p>
+          {activeAlerts.map((a) => {
+            const color  = ALERT_ANNOTATION_COLORS[a.alert_type] ?? '#6b7280';
+            const endMs  = toUtcMs(a.timestamp) + a.duration_seconds * 1000;
+            const endIso = new Date(endMs).toISOString();
+            const dur    = a.duration_seconds;
+            const durStr = dur < 60 ? `${dur}s` : `${Math.floor(dur / 60)}m ${dur % 60}s`;
+            return (
+              <div key={a.id} style={{ marginBottom: 4 }}>
+                <p style={{ margin: 0, fontWeight: 700, color }}>⚠ {a.alert_type} Alert</p>
+                <p style={{ margin: 0, color: '#6b7280', fontSize: 11 }}>Start: {toTime(a.timestamp)}</p>
+                <p style={{ margin: 0, color: '#6b7280', fontSize: 11 }}>End:   {toTime(endIso)}</p>
+                <p style={{ margin: 0, color: '#6b7280', fontSize: 11 }}>Duration: {durStr}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── SessionDetails page ──────────────────────────────────────────────────────
 
 export function SessionDetails() {
@@ -452,7 +532,10 @@ export function SessionDetails() {
   // ── Session volume meta (total_data_points sourced from sessions table KPIs) ─
 
   const totalDataPoints = analyticsData?.precomputedKPIs?.total_data_points ?? 0;
-  const windowCount     = Math.floor(totalDataPoints / 3);
+  // windowCount is derived directly from the downsampled timeSeriesData array
+  // returned by the analytics endpoint — the same array rendered on the chart —
+  // so this stat always matches the number of visible data points exactly.
+  const windowCount     = analyticsData?.timeSeriesData?.length ?? 0;
 
   // ── Loading state ───────────────────────────────────────────────────────────
 
@@ -611,33 +694,6 @@ export function SessionDetails() {
                     />
                   ))}
 
-                  {/* Alert duration ribbons — bound to the hidden ribbonAxis so the band
-                      position is independent of the dynamic HR/Stress scales.
-                      y1=95 / y2=100 always occupies exactly the top 5% of chart height.
-                      Rendered before CartesianGrid so grid lines remain fully visible. */}
-                  {sessionAlerts.map((alert) => {
-                    const { startIdx, endIdx } = mapAlertToDataIndices(
-                      alert.timestamp, alert.duration_seconds, chartData
-                    );
-                    const color = ALERT_ANNOTATION_COLORS[alert.alert_type] ?? '#6b7280';
-                    // Recharts silently skips a ReferenceArea where x1 === x2 (zero-width).
-                    // Clamp ribbonEnd to at least startIdx + 1 so short alerts always render.
-                    const ribbonEnd = endIdx > startIdx ? endIdx : startIdx + 1;
-                    return (
-                      <ReferenceArea
-                        key={`ribbon-${alert.id}`}
-                        x1={startIdx}
-                        x2={ribbonEnd}
-                        y1={95}
-                        y2={100}
-                        yAxisId="ribbonAxis"
-                        fill={color}
-                        fillOpacity={0.6}
-                        strokeOpacity={0}
-                      />
-                    );
-                  })}
-
                   <CartesianGrid strokeDasharray="3 3" />
                   {/* Horizontal baseline HR line — uses the real resting HR calibrated at
                       session start from patient_baselines, not an estimated fallback.
@@ -696,76 +752,7 @@ export function SessionDetails() {
                     tickFormatter={(value) => Math.round(value)}
                     label={{ value: 'Stress Score', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fill: '#8b5cf6', fontWeight: 'bold' } }}
                   />
-                  {/* Hidden axis used exclusively by the alert-ribbon ReferenceAreas.
-                      Fixed domain [0, 100] ensures y1=95 / y2=100 always maps to exactly
-                      the top 5% of chart height, regardless of the HR or Stress scales. */}
-                  <YAxis yAxisId="ribbonAxis" type="number" domain={[0, 100]} hide={true} />
-                  <Tooltip
-                    content={({ payload }) => {
-                      if (!payload || payload.length === 0) return null;
-                      const d = payload[0].payload;
-                      // Chain raw vrState → canonical key → display name so that any
-                      // Unity enum ('InFlightState') or alias ('Cruising') both resolve
-                      // to the same human-readable label ('Cruising').
-                      const resolvedKey = VR_STATE_KEY_MAP[d.vrState] ?? d.vrState;
-                      const stageName   = STAGE_NAMES[resolvedKey] || resolvedKey || 'Unknown';
-
-                      const toTime = (iso) =>
-                        new Date(toUtcMs(iso)).toLocaleTimeString([], {
-                          hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
-                        });
-
-                      // Bucket-based alert matching: an alert is shown when its time range
-                      // overlaps with the time bucket of the currently hovered data point.
-                      // This correctly handles real hardware's sub-second alert timestamps
-                      // that fall inside a 30-second downsampled bucket but not on its exact edge.
-                      const bucketStart = toUtcMs(d.timestamp);
-                      const nextPt      = chartData[d.dataIndex + 1];
-                      const bucketEnd   = nextPt ? toUtcMs(nextPt.timestamp) : bucketStart + 30_000;
-
-                      const activeAlerts = sessionAlerts.filter((a) => {
-                        const alertStart = toUtcMs(a.timestamp);
-                        const alertEnd   = alertStart + a.duration_seconds * 1000;
-                        // Overlapping intervals: alert starts before bucket ends AND ends after bucket starts
-                        return alertStart < bucketEnd && alertEnd > bucketStart;
-                      });
-
-                      return (
-                        <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-xs space-y-1 max-w-xs">
-                          <p className="font-semibold text-gray-700">
-                            {new Date(toUtcMs(d.timestamp)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
-                          </p>
-                          <p className="text-blue-600">Heart Rate: <strong>{d.avgHeartRate} BPM</strong></p>
-                          <p className="text-purple-600">Stress Score: <strong>{d.avgStressScore}</strong></p>
-                          <p className="text-teal-600">SpO₂: <strong>{d.avgSpo2 ? `${d.avgSpo2}%` : 'N/A'}</strong></p>
-                          <p className="text-gray-500">Stage: {stageName} ({d.difficulty})</p>
-
-                          {/* Alert details section — injected only when the hovered point
-                              falls inside one or more alert breach windows */}
-                          {activeAlerts.length > 0 && (
-                            <div className="border-t border-gray-200 mt-2 pt-2 space-y-2">
-                              {activeAlerts.map((a) => {
-                                const color   = ALERT_ANNOTATION_COLORS[a.alert_type] ?? '#6b7280';
-                                const endIso  = new Date(
-                                  toUtcMs(a.timestamp) + a.duration_seconds * 1000
-                                ).toISOString();
-                                return (
-                                  <div key={a.id}>
-                                    <p className="font-bold" style={{ color }}>
-                                      ⚠ {a.alert_type} Alert
-                                    </p>
-                                    <p className="text-gray-500">Start:    {toTime(a.timestamp)}</p>
-                                    <p className="text-gray-500">End:      {toTime(endIso)}</p>
-                                    <p className="text-gray-500">Duration: {a.duration_seconds}s</p>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }}
-                  />
+                  <Tooltip content={<CustomTooltip sessionAlerts={sessionAlerts} chartData={chartData} />} />
                   <Line yAxisId="left"  type="monotone" dataKey="avgHeartRate"   stroke="#3b82f6" strokeWidth={2} dot={false} />
                   <Line yAxisId="right" type="monotone" dataKey="avgStressScore" stroke="#8b5cf6" strokeWidth={2} dot={false} />
                   {/* Alert annotations — declared AFTER Line elements so the SVG paint order
@@ -819,17 +806,12 @@ export function SessionDetails() {
                   ordered by severity (Critical -> High -> Warning). */}
               <div className="mt-3 flex flex-wrap gap-4 border-t border-gray-100 pt-3">
                 <span className="font-semibold text-gray-700 mr-2 text-xs self-center">Alert Types:</span>
-                {['Safety', 'Panic', 'Statistical'].map((type) => {
-                  const colorClass = type === 'Safety' ? 'bg-red-500'
-                                  : type === 'Panic' ? 'bg-teal-500'
-                                  : 'bg-amber-500';
-                  return (
-                    <div key={type} className="flex items-center gap-1.5 text-xs text-gray-700">
-                      <div className={`w-3 h-3 rounded-full flex-shrink-0 ${colorClass}`} />
-                      {type}
-                    </div>
-                  );
-                })}
+                {['Safety', 'Panic', 'Statistical'].map((type) => (
+                  <div key={type} className="flex items-center gap-1.5 text-xs text-gray-700">
+                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: ALERT_ANNOTATION_COLORS[type] }} />
+                    {type}
+                  </div>
+                ))}
               </div>
             </>
           ) : (

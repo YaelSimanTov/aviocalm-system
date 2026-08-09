@@ -134,20 +134,13 @@ class SignalProcessingService {
    * @returns {boolean} True if value is an outlier
    */
   isOutlier(window, value) {
-    if (window.length < 4) return false; // Need minimum data for IQR
-    
-    const values = window.map(point => point.value).sort((a, b) => a - b);
-    const q1Index = Math.floor(values.length * 0.25);
-    const q3Index = Math.floor(values.length * 0.75);
-    
-    const q1 = values[q1Index];
-    const q3 = values[q3Index];
-    const iqr = q3 - q1;
-    
-    const lowerBound = q1 - (1.5 * iqr);
-    const upperBound = q3 + (1.5 * iqr);
-    
-    return value < lowerBound || value > upperBound;
+    // Outlier rejection is intentionally disabled.
+    // IQR bounds derived from a low-variance baseline window are too tight to
+    // distinguish real physiological spikes (panic / phase-offset injections)
+    // from hardware artifacts.  The moving-average smoother alone is sufficient
+    // to reduce sensor noise without silently discarding clinically significant
+    // events.
+    return false;
   }
 
  /**

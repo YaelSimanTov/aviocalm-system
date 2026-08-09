@@ -764,7 +764,7 @@ const updatePatientStatus = async (req, res) => {
 //   baseline_hr  – the real resting HR value calibrated at session start
 //                  (sourced from patient_baselines, NULL when not yet calibrated)
 //   total_points – raw biometric record count (one row per anxiety_profiles entry)
-//   window_count – number of downsampled chart windows (3 raw samples → 1 window)
+//   window_count – number of downsampled 30-second chart windows (matches timeSeriesData.length)
 const getSessionAlerts = async (req, res) => {
   const { sessionId } = req.params;
   try {
@@ -796,7 +796,16 @@ const getSessionAlerts = async (req, res) => {
 
     const baseline_hr  = baselineResult.rows[0]?.baseline_hr         ?? null;
     const total_points = sessionKpiResult.rows[0]?.total_data_points  ?? 0;
-    const window_count = Math.floor(total_points / 3);
+
+    // Derive window_count by running the same downsampleData function used by
+    // getSessionAnalytics — guarantees this stat always matches the chart's
+    // data point count rather than relying on an assumed raw-to-window ratio.
+    const rawForWindows = await pool.query(
+      `SELECT recorded_at, vr_state, difficulty, heart_rate, stress_score, spo2
+       FROM anxiety_profiles WHERE session_id = $1 ORDER BY recorded_at ASC`,
+      [sessionId]
+    );
+    const window_count = downsampleData(rawForWindows.rows, 30000).length;
 
     res.json({
       success: true,

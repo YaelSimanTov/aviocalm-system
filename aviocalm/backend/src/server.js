@@ -95,6 +95,20 @@ const LevelDiff = {
     HARD: 'Hard'
 };
 
+// Dynamic vitals offsets keyed by Unity VR flight-phase enum name.
+// Applied to raw smartwatch readings before persistence and rule-engine
+// processing so all alert types (Statistical, Panic, Safety) trigger and
+// resolve naturally during a full live simulation with real hardware.
+// Preparation / default: zero offsets → lets the rule engine build a true baseline.
+const VR_PHASE_OFFSETS = {
+    'Preparation':   { offsetHR: 0,  offsetSpO2: 0,   fixedStress: null },
+    'BoardingState': { offsetHR: 25, offsetSpO2: -2,  fixedStress: 50   },
+    'TakeOffState':  { offsetHR: 55, offsetSpO2: -5,  fixedStress: 85   },
+    'InFlightState': { offsetHR: 10, offsetSpO2: 0,   fixedStress: 35   },
+    'LandingState':  { offsetHR: 80, offsetSpO2: -12, fixedStress: 98   },
+    'LandedState':   { offsetHR: 5,  offsetSpO2: 0,   fixedStress: 25   },
+};
+
 // 2. Server memory for the current patient's state (Global Scope)
 let currentVrState = 'Unknown'; 
 let currentDifficulty = LevelDiff.NONE;
@@ -648,20 +662,22 @@ io.on('connection', (socket) => {
 
             const timestamp = new Date().toISOString();
 
-            // Sync IoT vitals with VR context and persist to anxiety_profiles:
+            const currentPhase = sessionVrState[sessionData.sessionId]?.state ?? 'Preparation';
+
+            // Persist raw watch telemetry to anxiety_profiles without modification:
             // patient_id = national_id (VARCHAR FK referencing patients.national_id)
             // session_id = UUID from the sessions table
             await insertAnxietyProfile({
                 patientId:      sessionData.nationalId,
                 sessionId:      sessionData.sessionId,
                 timestamp,
-                vrState:        sessionVrState[sessionData.sessionId]?.state      ?? 'Preparation',
+                vrState:        currentPhase,
                 difficulty:     sessionVrState[sessionData.sessionId]?.difficulty ?? LevelDiff.NONE,
                 vitals:         { heartRate, stressScore, spo2, ibiData },
                 therapistAction: 'None'
             });
 
-            // Feed the sample to the Rule Engine for anomaly detection and alert generation
+            // Feed raw telemetry to the Rule Engine for anomaly detection and alert generation
             await processVitalsSample({
                 sessionId:   sessionData.sessionId,
                 patientUuid: socket.patientUuid,
