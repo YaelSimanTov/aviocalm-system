@@ -1,6 +1,5 @@
-name: Continuous Integration
+name: Full-Stack CI/CD Pipeline
 
- 
 on:
   push:
     branches: [ "dev", "dev-*", "main" ]
@@ -8,25 +7,29 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout Code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js environment
         uses: actions/setup-node@v4
         with:
-          node-version: '20' 
+          node-version: '24' # Updated to version 24 to resolve the yellow warning
+          cache: 'npm'
+          cache-dependency-path: |
+            aviocalm/backend/package-lock.json # Ensure this is the correct path for the backend
+            aviocalm/frontend/package-lock.json # Ensure this is the correct path for the frontend
 
-      
-      - name: Install Server Dependencies
-        working-directory: ./server  
+      # --- Backend (Node.js, Express, Socket.io) ---
+      - name: Install Backend Dependencies
+        working-directory: ./aviocalm/backend  
         run: npm ci
 
-      - name: Install Client Dependencies
-        working-directory: ./client  
+      # --- Frontend (React) ---
+      - name: Install Frontend Dependencies
+        working-directory: ./aviocalm/frontend # Update to the actual frontend folder name
         run: npm ci
 
-      - name: Build Client (React)
-        working-directory: ./client
+      - name: Build Frontend Application
+        working-directory: ./aviocalm/frontend # Update to the actual frontend path
         run: npm run build
