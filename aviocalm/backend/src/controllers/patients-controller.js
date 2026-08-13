@@ -87,7 +87,12 @@ const getPatientById = async (req, res) => {
     if (role === 'Owner') {
       // Owner can access any patient
       query = `
-        SELECT p.*, u.first_name || ' ' || u.last_name as therapist_name
+        SELECT p.id, p.national_id, p.full_name, p.phone, p.email,
+               TO_CHAR(p.date_of_birth, 'YYYY-MM-DD') AS date_of_birth,
+               p.address, p.medical_history, p.phobia_type, p.phobia_triggers,
+               p.calming_factors, p.emergency_contact_name, p.emergency_contact_phone,
+               p.therapist_id, p.status, p.created_at, p.updated_at,
+               u.first_name || ' ' || u.last_name AS therapist_name
         FROM patients p
         LEFT JOIN users u ON p.therapist_id = u.user_id
         WHERE p.id = $1
@@ -96,7 +101,12 @@ const getPatientById = async (req, res) => {
     } else {
       // Therapists can only access their own patients
       query = `
-        SELECT p.*, u.first_name || ' ' || u.last_name as therapist_name
+        SELECT p.id, p.national_id, p.full_name, p.phone, p.email,
+               TO_CHAR(p.date_of_birth, 'YYYY-MM-DD') AS date_of_birth,
+               p.address, p.medical_history, p.phobia_type, p.phobia_triggers,
+               p.calming_factors, p.emergency_contact_name, p.emergency_contact_phone,
+               p.therapist_id, p.status, p.created_at, p.updated_at,
+               u.first_name || ' ' || u.last_name AS therapist_name
         FROM patients p
         LEFT JOIN users u ON p.therapist_id = u.user_id
         WHERE p.id = $1 AND p.therapist_id = $2
@@ -171,6 +181,17 @@ const createPatient = async (req, res) => {
         error: 'National ID, full name, and phone are required'
       });
     }
+
+    if (date_of_birth) {
+      const today = new Date().toISOString().split('T')[0];
+      const dobOnly = date_of_birth.split('T')[0];
+      if (dobOnly > today) {
+        return res.status(400).json({
+          success: false,
+          error: 'Date of birth cannot be in the future'
+        });
+      }
+    }
     
     // Check for duplicate national_id
     const existingPatient = await pool.query(
@@ -201,7 +222,7 @@ const createPatient = async (req, res) => {
       full_name,
       phone || null,
       email || null,
-      date_of_birth || null,
+      date_of_birth ? date_of_birth.split('T')[0] : null,
       address || null,
       medical_history || null,
       phobia_type,
@@ -252,6 +273,7 @@ const updatePatient = async (req, res) => {
       emergency_contact_name,
       emergency_contact_phone
     } = req.body;
+    const dobClean = date_of_birth ? date_of_birth.split('T')[0] : null;
     
     // First check if patient exists and user has access
     let checkQuery, checkParams;
@@ -273,6 +295,17 @@ const updatePatient = async (req, res) => {
       });
     }
     
+    if (date_of_birth) {
+      const today = new Date().toISOString().split('T')[0];
+      const dobOnly = date_of_birth.split('T')[0];
+      if (dobOnly > today) {
+        return res.status(400).json({
+          success: false,
+          error: 'Date of birth cannot be in the future'
+        });
+      }
+    }
+
     // Check for duplicate national_id (if changed)
     if (national_id && national_id !== existingPatient.rows[0].national_id) {
       const duplicateCheck = await pool.query(
@@ -310,7 +343,7 @@ const updatePatient = async (req, res) => {
       full_name,
       phone || null,
       email || null,
-      date_of_birth || null,
+      dobClean,
       address || null,
       medical_history || null,
       phobia_type,
@@ -325,7 +358,12 @@ const updatePatient = async (req, res) => {
     
     // Fetch updated patient data
     const updatedPatientQuery = `
-      SELECT p.*, u.first_name || ' ' || u.last_name as therapist_name
+      SELECT p.id, p.national_id, p.full_name, p.phone, p.email,
+             TO_CHAR(p.date_of_birth, 'YYYY-MM-DD') AS date_of_birth,
+             p.address, p.medical_history, p.phobia_type, p.phobia_triggers,
+             p.calming_factors, p.emergency_contact_name, p.emergency_contact_phone,
+             p.therapist_id, p.status, p.created_at, p.updated_at,
+             u.first_name || ' ' || u.last_name AS therapist_name
       FROM patients p
       LEFT JOIN users u ON p.therapist_id = u.user_id
       WHERE p.id = $1

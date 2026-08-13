@@ -67,7 +67,7 @@ export const PatientProfile = () => {
           national_id: result.data.national_id || '',
           phone: result.data.phone || '',
           email: result.data.email || '',
-          date_of_birth: result.data.date_of_birth || '',
+          date_of_birth: result.data.date_of_birth ? result.data.date_of_birth.split('T')[0] : '',
           address: result.data.address || '',
           medical_history: result.data.medical_history || '',
           phobia_type: result.data.phobia_type || 'Flight',
@@ -130,6 +130,8 @@ export const PatientProfile = () => {
       errors.date_of_birth = 'Date of birth is required';
     } else if (formData.date_of_birth === 'INVALID_DATE') {
       errors.date_of_birth = 'Please enter a valid date in DD/MM/YYYY format';
+    } else if (formData.date_of_birth === 'FUTURE_DATE') {
+      errors.date_of_birth = 'Date of birth cannot be in the future';
     }
     
     // National ID format validation (numbers only)
@@ -173,6 +175,20 @@ export const PatientProfile = () => {
       
       if (result.success) {
         setPatient(result.data);
+        setFormData({
+          full_name: result.data.full_name || '',
+          national_id: result.data.national_id || '',
+          phone: result.data.phone || '',
+          email: result.data.email || '',
+          date_of_birth: result.data.date_of_birth ? result.data.date_of_birth.split('T')[0] : '',
+          address: result.data.address || '',
+          medical_history: result.data.medical_history || '',
+          phobia_type: result.data.phobia_type || 'Flight',
+          phobia_triggers: result.data.phobia_triggers || '',
+          calming_factors: result.data.calming_factors || '',
+          emergency_contact_name: result.data.emergency_contact_name || '',
+          emergency_contact_phone: result.data.emergency_contact_phone || ''
+        });
         setIsEditing(false);
         setSuccessMessage('Patient information updated successfully!');
         setFormErrors({}); // Clear form errors
@@ -621,6 +637,7 @@ export const PatientProfile = () => {
                           value={formData.date_of_birth}
                           onChange={handleInputChange}
                           disabled={!isEditing}
+                          maxDate={`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`}
                           className={`patient-profile__input ${formErrors.date_of_birth ? 'patient-profile__input--error' : ''}`}
                         />
                         {formErrors.date_of_birth && (

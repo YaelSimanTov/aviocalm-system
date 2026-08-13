@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 
 // Controlled date input that always displays DD/MM/YYYY regardless of browser locale.
 // Fires onChange with a synthetic event where target.value is one of:
-//   - A valid 'YYYY-MM-DD' string when the entered date is complete and real.
+//   - A valid 'YYYY-MM-DD' string when the entered date is complete, real, and within maxDate.
+//   - 'FUTURE_DATE' when the date is valid but exceeds the optional maxDate prop.
 //   - 'INVALID_DATE' when the user has typed something but it is incomplete or impossible.
 //   - '' when the field is fully empty.
 // This keeps the parent state in a predictable ISO format and lets validateStep
-// distinguish "empty" from "invalid format" for accurate error messaging.
-const DateInputDDMMYYYY = ({ id, name, value, onChange, className, required, disabled }) => {
+// distinguish "empty", "invalid format", and "future date" for accurate error messaging.
+const DateInputDDMMYYYY = ({ id, name, value, onChange, className, required, disabled, maxDate }) => {
   const toDisplay = (iso) => {
     if (!iso || iso === 'INVALID_DATE') return '';
     // Strip any time/timezone suffix (e.g. "T00:00:00.000Z") from API values
@@ -27,7 +28,7 @@ const DateInputDDMMYYYY = ({ id, name, value, onChange, className, required, dis
   // 'INVALID_DATE' — that marker was just emitted by this component's own onChange
   // and the display already holds whatever partial string the user is typing.
   useEffect(() => {
-    if (value !== 'INVALID_DATE') {
+    if (value !== 'INVALID_DATE' && value !== 'FUTURE_DATE') {
       setDisplay(toDisplay(value));
     }
   }, [value]);
@@ -49,13 +50,16 @@ const DateInputDDMMYYYY = ({ id, name, value, onChange, className, required, dis
       const mm = digits.slice(2, 4);
       const yyyy = digits.slice(4, 8);
       const iso = `${yyyy}-${mm}-${dd}`;
-      const d = new Date(iso);
+      const ddNum = parseInt(dd, 10);
+      const mmNum = parseInt(mm, 10);
+      const yyyyNum = parseInt(yyyy, 10);
+      const daysInMm = new Date(yyyyNum, mmNum, 0).getDate();
       const isValid =
-        !isNaN(d) &&
-        d.getFullYear() === parseInt(yyyy, 10) &&
-        d.getMonth() + 1 === parseInt(mm, 10) &&
-        d.getDate() === parseInt(dd, 10);
-      onChange({ target: { name, value: isValid ? iso : 'INVALID_DATE' } });
+        yyyyNum >= 1900 &&
+        mmNum >= 1 && mmNum <= 12 &&
+        ddNum >= 1 && ddNum <= daysInMm;
+      const isFuture = isValid && maxDate && iso > maxDate;
+      onChange({ target: { name, value: isValid ? (isFuture ? 'FUTURE_DATE' : iso) : 'INVALID_DATE' } });
     } else if (digits.length === 0) {
       onChange({ target: { name, value: '' } });
     } else {
