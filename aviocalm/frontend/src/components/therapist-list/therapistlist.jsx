@@ -48,21 +48,23 @@ const TherapistList = () => {
     );
   });
 
-  const confirmDelete = async () => {
+  const confirmDelete = async (replacementTherapistId) => {
     if (!therapistToDelete) return;
 
     try {
       const token = localStorage.getItem("aviocalm_token");
+      const body = replacementTherapistId ? { replacement_therapist_id: replacementTherapistId } : {};
 
-      const response = await fetch(`http://localhost:5000/api/owner/therapists/${therapistToDelete}`, {
+      const response = await fetch(`http://localhost:5000/api/owner/therapists/${therapistToDelete.username}`, {
         method: 'DELETE',
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body)
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        setTherapists(therapists.filter(t => t.username !== therapistToDelete));
+        setTherapists(prev => prev.filter(t => t.username !== therapistToDelete.username));
         setIsDeleteModalOpen(false);
         setTherapistToDelete(null);
       } else {
@@ -176,8 +178,8 @@ const TherapistList = () => {
                           <div className="my-1 border-t border-slate-100"></div>
                           <button
                             onClick={() => {
-                              setTherapistToDelete(t.username);  
-                              setIsDeleteModalOpen(true);  
+                              setTherapistToDelete(t);
+                              setIsDeleteModalOpen(true);
                               setOpenMenuId(null);
                             }}
                             className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
@@ -198,9 +200,10 @@ const TherapistList = () => {
       <PasswordResetModal isOpen={isResetOpen} data={resetData} onClose={() => setIsResetOpen(false)} />
       <EditTherapistModal isOpen={isEditOpen} therapist={editingTherapist} onClose={() => setIsEditOpen(false)} onSave={handleEditSave} />
 
-       <DeleteConfirmModal
+      <DeleteConfirmModal
         isOpen={isDeleteModalOpen}
-        username={therapistToDelete}
+        therapist={therapistToDelete}
+        otherTherapists={therapists.filter(t => t.username !== therapistToDelete?.username)}
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={confirmDelete}
       />

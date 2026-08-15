@@ -24,10 +24,13 @@ router.get('/dashboard', (req, res) => {
 router.get('/therapists', async (req, res) => {
     try {
         const result = await pool.query(
-            `SELECT user_id, username, first_name, last_name, role, is_first_login, email, phone_number
-             FROM users
-             WHERE role = $1
-             ORDER BY username ASC`,
+            `SELECT u.user_id, u.username, u.first_name, u.last_name, u.role, u.is_first_login, u.email, u.phone_number,
+                    COUNT(p.id) AS patient_count
+             FROM users u
+             LEFT JOIN patients p ON p.therapist_id = u.user_id
+             WHERE u.role = $1
+             GROUP BY u.user_id
+             ORDER BY u.username ASC`,
             ['Therapist']
         );
 
@@ -113,11 +116,14 @@ router.post('/create-therapist', validate(createTherapistSchema), async (req, re
         });
     }
 });
+
 // DELETE /api/owner/therapists/:username
 router.delete('/therapists/:username', async (req, res) => {
-    try {
-        const { username } = req.params;
+    const { username } = req.params;
+    const { replacement_therapist_id } = req.body;
 
+    let client;
+    try {
         const therapistResult = await pool.query(
             `SELECT user_id, username
              FROM users
@@ -135,37 +141,65 @@ router.delete('/therapists/:username', async (req, res) => {
         const therapist = therapistResult.rows[0];
 
         const patientsResult = await pool.query(
-            `SELECT COUNT(*) AS count
-             FROM patients
-             WHERE therapist_id = $1`,
+            `SELECT COUNT(*) AS count FROM patients WHERE therapist_id = $1`,
             [therapist.user_id]
         );
+        const patientCount = Number(patientsResult.rows[0].count);
 
-        const patientsCount = Number(patientsResult.rows[0].count);
-
-        if (patientsCount > 0) {
-            return res.status(409).json({
+        // Patients exist but no replacement was provided — reject early
+        if (patientCount > 0 && !replacement_therapist_id) {
+            return res.status(400).json({
                 success: false,
-                message: `Cannot delete therapist. This therapist has ${patientsCount} assigned patient(s).`
+                message: `This therapist has ${patientCount} assigned patient(s). A replacement therapist must be selected before deletion.`
             });
         }
 
-        await pool.query(
-            `DELETE FROM users
-             WHERE user_id = $1`,
+        // Acquire a dedicated client so the entire operation runs in one transaction
+        client = await pool.connect();
+        await client.query('BEGIN');
+
+        if (patientCount > 0) {
+            // Verify the replacement therapist exists before committing any change
+            const replacementResult = await client.query(
+                `SELECT user_id FROM users WHERE user_id = $1 AND role = $2`,
+                [replacement_therapist_id, 'Therapist']
+            );
+            if (replacementResult.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(404).json({
+                    success: false,
+                    message: 'Replacement therapist not found.'
+                });
+            }
+
+            // Bulk-reassign all patients to the replacement therapist
+            await client.query(
+                `UPDATE patients SET therapist_id = $1 WHERE therapist_id = $2`,
+                [replacement_therapist_id, therapist.user_id]
+            );
+        }
+
+        // Physically delete the therapist
+        await client.query(
+            `DELETE FROM users WHERE user_id = $1`,
             [therapist.user_id]
         );
+
+        await client.query('COMMIT');
 
         res.json({
             success: true,
             message: 'Therapist deleted successfully'
         });
     } catch (error) {
+        if (client) await client.query('ROLLBACK');
         console.error('[OWNER] Error deleting therapist:', error);
         res.status(500).json({
             success: false,
             message: 'Error deleting therapist'
         });
+    } finally {
+        if (client) client.release();
     }
 });
 
