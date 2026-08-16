@@ -1,14 +1,19 @@
 /**
  * Rule Engine — US 4.1: Smart Alerts & Clinical Annotations
  *
- * Orchestrates per-session signal processing, calibration baseline collection,
- * multi-channel rule evaluation, and persistent alert creation.
+ * Orchestrates per-session signal processing, baseline injection, multi-channel
+ * rule evaluation, and persistent alert creation.
  *
  * Architecture:
  *   - Per-session state: each active session owns a dedicated SignalProcessingService
  *     and SafetyEngine instance so concurrent remote sessions never share windows.
- *   - Calibration window: the first BASELINE_WINDOW_SECONDS samples establish the
- *     patient's personal resting HR/stress; rule evaluation is suppressed until then.
+ *   - Session baseline: the VR calibration phase (Nature Room) is the single source
+ *     of truth for the patient's resting HR and HR StdDev.  The CALIBRATION_END
+ *     socket event triggers initializeSessionBaseline(), which injects the computed
+ *     values into the SafetyEngine before rule evaluation begins.
+ *   - Rule evaluation begins immediately from the first vitals sample received after
+ *     initializeSessionBaseline() has been called.  Samples arriving before that
+ *     call (i.e. during the VR calibration phase itself) are silently dropped.
  *   - Breach lifecycle: when a channel opens, the start timestamp is recorded.  When
  *     the channel clears, duration_seconds is calculated and the alert is persisted
  *     only if duration >= duration_threshold from medical_norms.
@@ -24,12 +29,6 @@ const { SafetyEngine }            = require('./safety-engine');
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Number of leading samples used purely for calibration.
-// 60 samples ≈ 1 minute at the watch's ~1 Hz sampling rate.
-// This window must capture natural resting HR variability so the
-// computed StdDev is realistic before rule evaluation begins.
-const BASELINE_WINDOW_SECONDS = 60;
-
 // Maps SafetyEngine channel keys to the alert_type enum stored in the DB
 const CHANNEL_ALERT_TYPE = {
   absoluteSafety: 'Safety',
@@ -42,7 +41,7 @@ const CHANNEL_ALERT_TYPE = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // sessionId -> { signalProcessor, safetyEngine, sampleCount,
-//               baselineSamples, baseline, openBreaches }
+//               baseline, openBreaches }
 const sessionRegistry = new Map();
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -114,8 +113,7 @@ function getOrCreateSessionState(sessionId) {
       signalProcessor: new SignalProcessingService(5),  // 5-point moving-average window
       safetyEngine:    new SafetyEngine(noopIo),
       sampleCount:     0,
-      baselineSamples: { hr: [], stress: [] },
-      baseline:        null,
+      baseline:        null,   // null until initializeSessionBaseline() is called
       openBreaches:    new Map(),  // channelKey -> breach metadata
       norms:           null,       // cached per-session after first DOB lookup
       patientUuid:     null,       // stored so finalizeSession can resolve norms
@@ -127,24 +125,6 @@ function getOrCreateSessionState(sessionId) {
 // ─────────────────────────────────────────────────────────────────────────────
 // DB helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-async function persistBaseline(patientId, sessionId, avgHr, avgStress) {
-  console.log(`[RULE ENGINE] Inserting baseline — patient_id: ${patientId}, session_id: ${sessionId}, avgHr: ${avgHr.toFixed(2)}, avgStress: ${avgStress.toFixed(2)}`);
-  try {
-    await pool.query(
-      `INSERT INTO patient_baselines (patient_id, session_id, avg_resting_hr, avg_resting_stress)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (session_id) DO UPDATE
-         SET avg_resting_hr    = EXCLUDED.avg_resting_hr,
-             avg_resting_stress = EXCLUDED.avg_resting_stress`,
-      [patientId, sessionId, avgHr, avgStress]
-    );
-    console.log(`[RULE ENGINE] Baseline persisted OK — session ${sessionId}: HR=${avgHr.toFixed(1)} BPM, Stress=${avgStress.toFixed(1)}`);
-  } catch (err) {
-    console.error(`[RULE ENGINE] FAILED to persist baseline — ${err.message}`);
-    console.error(err.stack);
-  }
-}
 
 async function persistAlert(patientId, sessionId, startTime, durationSeconds, alertType, description) {
   console.log(`[RULE ENGINE] >>> INSERT alert — patient_id: ${patientId} | session_id: ${sessionId} | type: ${alertType} | duration: ${durationSeconds}s | start: ${startTime.toISOString()}`);
@@ -260,33 +240,12 @@ async function processVitalsSample({ sessionId, patientUuid, timestamp, heartRat
   // Step 1 — Apply Moving Average filter via SignalProcessingService
   const smoothed = state.signalProcessor.processRawMetrics({ heartRate, stressScore, spo2 });
 
-  // Step 2 — Calibration phase: collect baseline samples, skip rule evaluation
-  if (n <= BASELINE_WINDOW_SECONDS) {
-    state.baselineSamples.hr.push(heartRate);
-    state.baselineSamples.stress.push(stressScore);
-
-    if (n === BASELINE_WINDOW_SECONDS) {
-      const { hr: hrSamples, stress: stressSamples } = state.baselineSamples;
-      const avgHr     = hrSamples.reduce((a, b) => a + b, 0)     / hrSamples.length;
-      const avgStress = stressSamples.reduce((a, b) => a + b, 0) / stressSamples.length;
-
-      // Population standard deviation of the calibration HR window.
-      // Used by the Relative Statistical Channel to compute per-sample Z-Scores.
-      // Population formula (divide by N, not N-1) is appropriate here because
-      // the calibration window IS the full baseline population, not a sample of it.
-      const hrVariance      = hrSamples.reduce((sum, val) => sum + (val - avgHr) ** 2, 0) / hrSamples.length;
-      const hrStdDevRaw    = Math.sqrt(hrVariance);
-      // Clamp to a physiological minimum: even the steadiest patient has ≥3 BPM
-      // beat-to-beat variability. Without this, a flat 10-sample window produces a
-      // StdDev near zero, causing normal 2 BPM fluctuations to reach Z ≥ 2.0.
-      const hrStdDev       = Math.max(hrStdDevRaw, 3.0);
-
-      state.baseline = { hr: avgHr, stress: avgStress, hrStdDev };
-      state.safetyEngine.setPatientBaseline({ avg_resting_hr: avgHr, avg_resting_stress: avgStress, hr_std_dev: hrStdDev });
-      console.log(`[RULE ENGINE] Calibration complete — baseline HR=${avgHr.toFixed(1)}, Stress=${avgStress.toFixed(1)}, HR_StdDev=${hrStdDev.toFixed(2)} (raw=${hrStdDevRaw.toFixed(2)}, min-clamped to 3.0). Rule evaluation starts next sample.`);
-
-      await persistBaseline(patientUuid, sessionId, avgHr, avgStress);
-    }
+  // Step 2 — Wait for the session baseline to be injected by initializeSessionBaseline().
+  // The VR calibration phase (Nature Room) is the single source of truth for the
+  // patient's resting HR and HR StdDev.  Vitals that arrive before CALIBRATION_END
+  // fires are silently dropped so that no spurious alerts are generated during the
+  // relaxation phase itself.
+  if (state.baseline === null) {
     return;
   }
 
@@ -370,4 +329,22 @@ async function finalizeSession(sessionId) {
   console.log(`[RULE ENGINE] Session ${sessionId} finalized and removed from registry`);
 }
 
-module.exports = { processVitalsSample, finalizeSession };
+/**
+ * Inject the session baseline derived from the VR calibration phase (Nature Room).
+ * Must be called from the CALIBRATION_END socket handler before watch vitals are
+ * evaluated against any rule channel.
+ *
+ * @param {string} sessionId   - Active session UUID
+ * @param {string} patientUuid - Patient UUID (PK in patients table)
+ * @param {number} baselineHR  - Average resting HR from the calibration window (BPM)
+ * @param {number} hrStdDev    - Population StdDev of HR from the calibration window (BPM)
+ */
+function initializeSessionBaseline(sessionId, patientUuid, baselineHR, hrStdDev) {
+  const state = getOrCreateSessionState(sessionId);
+  state.patientUuid = patientUuid;
+  state.baseline    = { hr: baselineHR, hrStdDev };
+  state.safetyEngine.setPatientBaseline({ avg_resting_hr: baselineHR, hr_std_dev: hrStdDev });
+  console.log(`[RULE ENGINE] Session baseline injected — session: ${sessionId} | HR=${baselineHR.toFixed(1)} BPM | HR_StdDev=${hrStdDev.toFixed(2)}`);
+}
+
+module.exports = { processVitalsSample, finalizeSession, initializeSessionBaseline };
