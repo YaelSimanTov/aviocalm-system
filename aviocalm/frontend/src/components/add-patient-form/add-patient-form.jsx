@@ -84,6 +84,8 @@ export const AddPatientForm = () => {
         newErrors.date_of_birth = 'Date of birth is required';
       } else if (formData.date_of_birth === 'INVALID_DATE') {
         newErrors.date_of_birth = 'Please enter a valid date in DD/MM/YYYY format';
+      } else if (formData.date_of_birth === 'FUTURE_DATE') {
+        newErrors.date_of_birth = 'Date of birth cannot be in the future';
       }
       
       if (!formData.phone.trim()) {
@@ -382,6 +384,7 @@ export const AddPatientForm = () => {
                   }`}
                   value={formData.date_of_birth}
                   onChange={handleChange}
+                  maxDate={`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`}
                 />
                 {errors.date_of_birth && (
                   <p className="add-patient-form__error-text">{errors.date_of_birth}</p>
