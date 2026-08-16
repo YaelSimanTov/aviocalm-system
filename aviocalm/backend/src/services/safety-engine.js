@@ -40,11 +40,10 @@ class SafetyEngine {
       }
     };
     
-    // Patient baseline data
+    // Patient baseline data — HR only; stress is evaluated against medical norms, not a personal baseline
     this.patientBaseline = {
       restingHeartRate: 75,
-      restingStress: 20,
-      hrStdDev: 5   // Default: 5 BPM standard deviation until calibration window completes
+      hrStdDev: 5   // Default: 5 BPM standard deviation until VR calibration injects the real value
     };
     
     // Medical norms based on age and health status
@@ -76,11 +75,10 @@ class SafetyEngine {
   setPatientBaseline(baseline) {
     this.patientBaseline = {
       restingHeartRate: baseline.avg_resting_hr,
-      restingStress:    baseline.avg_resting_stress,
       hrStdDev:         baseline.hr_std_dev || 5   // Fall back to 5 BPM if not supplied
     };
     
-    console.log(`[SAFETY ENGINE] Patient baseline set: HR=${this.patientBaseline.restingHeartRate}, Stress=${this.patientBaseline.restingStress}, HR_StdDev=${this.patientBaseline.hrStdDev.toFixed(2)}`);
+    console.log(`[SAFETY ENGINE] Patient baseline set: HR=${this.patientBaseline.restingHeartRate} BPM | HR_StdDev=${this.patientBaseline.hrStdDev.toFixed(2)}`);
   }
 
   /**

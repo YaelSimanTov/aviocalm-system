@@ -15,7 +15,7 @@ const { processCalibration } = require('./sockets/calibrationHandler');
 const { getPatientByDevice, completeSession } = require('./services/device-resolver');
 
 // Rule Engine for async alert generation (US 4.1)
-const { processVitalsSample, finalizeSession } = require('./services/rule-engine');
+const { processVitalsSample, finalizeSession, initializeSessionBaseline } = require('./services/rule-engine');
 
 // HRV-based stress calculator for smartwatch IBI streams
 const { calculateStressFromIBI } = require('./services/hrv-calculator');
@@ -546,10 +546,24 @@ io.on('connection', (socket) => {
             const currentSessionId = activeSessions[patientId]?.sessionId || null;
 
             if (hrArray && hrArray.length > 0) {
-                const sum = hrArray.reduce((a, b) => a + b, 0);
-                const avgBaseline = Math.round(sum / hrArray.length);
-                console.log(`[CALIBRATION] Complete. Saving avg HR: ${avgBaseline} for patient: ${patientId}`);
-                await savePatientBaseline(patientId, currentSessionId, avgBaseline);
+                const sum         = hrArray.reduce((a, b) => a + b, 0);
+                const avgBaseline = sum / hrArray.length;
+
+                // Population standard deviation of the calibration HR window.
+                // Clamped to a minimum of 3.0 BPM so that a nearly-flat resting signal
+                // does not produce an artificially low StdDev that inflates Z-Scores later.
+                const hrVariance  = hrArray.reduce((acc, val) => acc + (val - avgBaseline) ** 2, 0) / hrArray.length;
+                const hrStdDevRaw = Math.sqrt(hrVariance);
+                const hrStdDev   = Math.max(hrStdDevRaw, 3.0);
+                const avgHR      = Math.round(avgBaseline);
+
+                console.log(`[CALIBRATION] Complete — avgHR: ${avgHR} BPM | HR_StdDev: ${hrStdDev.toFixed(2)} (raw=${hrStdDevRaw.toFixed(2)}) for patient: ${patientId}`);
+
+                await savePatientBaseline(patientId, currentSessionId, avgHR);
+
+                if (currentSessionId) {
+                    initializeSessionBaseline(currentSessionId, patientId, avgBaseline, hrStdDev);
+                }
             } else {
                 console.log(`[CALIBRATION] Complete, but no data collected for patient: ${patientId}`);
             }

@@ -11,8 +11,13 @@ const processCalibration = (currentHeartRate, historicalBaseline) => {
         };
     }
 
-    // Check if HR is within 10% of the historical baseline
-    const isRelaxed = currentHeartRate <= (historicalBaseline * 1.1);
+    // A patient is considered relaxed only when a prior baseline exists and the current
+    // HR sits strictly within ±10% of that historical resting value.
+    // If historicalBaseline is 0 (no prior sessions on record), this evaluates to false
+    // so first-time patients always receive the full 300-second calibration window.
+    const isRelaxed = historicalBaseline > 0
+        && currentHeartRate >= historicalBaseline * 0.9
+        && currentHeartRate <= historicalBaseline * 1.1;
 
     if (isRelaxed) {
         return {
