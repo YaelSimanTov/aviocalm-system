@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { apiRequest } from '../../utils/api';
 import { TreatmentHistory } from '../treatment-history/treatment-history';
-import DateInputDDMMYYYY from '../shared/DateInputDDMMYYYY';
+import DateInputDDMMYYYY from '../shared/date-input-ddmmyyyy';
 import './patient-profile.css';
 
 export const PatientProfile = () => {

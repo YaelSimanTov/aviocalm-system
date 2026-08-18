@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../utils/api';
-import DateInputDDMMYYYY from '../shared/DateInputDDMMYYYY';
+import DateInputDDMMYYYY from '../shared/date-input-ddmmyyyy';
 import './add-patient-form.css';
 
 export const AddPatientForm = () => {

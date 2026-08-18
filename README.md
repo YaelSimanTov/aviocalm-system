@@ -191,7 +191,7 @@ aviocalm/
 │       ├── middleware/
 │       ├── mocks/
 │       └── sockets/
-│           └── calibrationHandler.js
+│           └── calibration-handler.js
 └── frontend/
     └── src/
         ├── App.jsx

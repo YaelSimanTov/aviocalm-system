@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import './therapistlist.css';
-import PasswordResetModal from './passwordresetmodal';
-import EditTherapistModal from './edittherapistmodal';
-import DeleteConfirmModal from './deleteconfirmmodal';
+import './therapist-list.css';
+import PasswordResetModal from './password-reset-modal';
+import EditTherapistModal from './edit-therapist-modal';
+import DeleteConfirmModal from './delete-confirm-modal';
 import { Trash2, Edit, Key, MoreVertical, Search, UserX } from 'lucide-react';
 
 const TherapistList = () => {

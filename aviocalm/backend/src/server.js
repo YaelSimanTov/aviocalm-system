@@ -9,7 +9,7 @@ require('dotenv').config();
 const { insertAnxietyProfile, initializeDatabase, completeSessionWithHRV, getPatientBaseline, savePatientBaseline, createNewSession, updateDeviceLastSeen, insertVrEvent, getActiveSessionForPatient } = require('./db/db-manager');
 
 // Calibration logic for VR headset pre-flight sync
-const { processCalibration } = require('./sockets/calibrationHandler');
+const { processCalibration } = require('./sockets/calibration-handler');
 
 // Device resolver for async patient-device routing (US 6.3)
 const { getPatientByDevice, completeSession } = require('./services/device-resolver');

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './add-therapist-form.css';
-import CreatedTherapistModal from './createdtherapistmodal';
+import CreatedTherapistModal from './created-therapist-modal';
 
 const AddTherapistForm = () => {
   const navigate = useNavigate();

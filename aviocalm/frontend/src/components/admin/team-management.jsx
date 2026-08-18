@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import TherapistList from '../therapist-list/therapistlist';
+import TherapistList from '../therapist-list/therapist-list';
 
 export const TeamManagement = () => {
   return (
